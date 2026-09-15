@@ -1,13 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Server } from '../types';
+import CreateServerModal from './CreateServerModal';
 
 interface ServerSidebarProps {
   servers: Server[];
   activeServer: string;
   onSelectServer: (id: string) => void;
+  onCreateServer: (name: string, icon: string) => void;
 }
 
-const ServerSidebar: React.FC<ServerSidebarProps> = ({ servers, activeServer, onSelectServer }) => {
+const ServerSidebar: React.FC<ServerSidebarProps> = ({ servers, activeServer, onSelectServer, onCreateServer }) => {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const handleCreateServer = (name: string, icon: string) => {
+    onCreateServer(name, icon);
+  };
+
   return (
     <div className="w-[72px] bg-[#1e1f22] flex flex-col items-center py-3 gap-2 overflow-y-auto">
       {/* Home button */}
@@ -42,11 +50,22 @@ const ServerSidebar: React.FC<ServerSidebarProps> = ({ servers, activeServer, on
       ))}
       
       {/* Add server button */}
-      <button className="w-12 h-12 rounded-3xl bg-[#313338] flex items-center justify-center text-[#23a559] hover:rounded-xl hover:bg-[#23a559] hover:text-white transition-all duration-200">
+      <button 
+        onClick={() => setShowCreateModal(true)}
+        className="w-12 h-12 rounded-3xl bg-[#313338] flex items-center justify-center text-[#23a559] hover:rounded-xl hover:bg-[#23a559] hover:text-white transition-all duration-200"
+        title="Создать сервер"
+      >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
           <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
         </svg>
       </button>
+
+      {/* Create Server Modal */}
+      <CreateServerModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={handleCreateServer}
+      />
     </div>
   );
 };

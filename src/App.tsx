@@ -296,6 +296,37 @@ function App() {
     setConnectionMode(mode);
   };
 
+  const handleCreateServer = useCallback((name: string, icon: string) => {
+    const newServerId = `server-${Date.now()}`;
+    
+    const newServer: Server = {
+      id: newServerId,
+      name,
+      icon,
+      voiceChannels: [
+        {
+          id: `vc-${Date.now()}-1`,
+          name: 'Общий',
+          type: 'voice',
+          users: [],
+          bitrate: 64000,
+        },
+      ],
+      textChannels: [
+        {
+          id: `tc-${Date.now()}-1`,
+          name: 'общий-чат',
+          messages: [],
+        },
+      ],
+    };
+    
+    setServerData(prev => [...prev, newServer]);
+    setActiveServerId(newServerId);
+    setActiveChannelId(null);
+    setViewMode('welcome');
+  }, []);
+
   const getActiveVoiceChannel = (): VoiceChannel | null => {
     if (viewMode !== 'voice' || !activeChannelId) return null;
     const server = serverData.find(s => s.id === activeServerId);
@@ -320,6 +351,7 @@ function App() {
         servers={serverData}
         activeServer={activeServerId}
         onSelectServer={handleSelectServer}
+        onCreateServer={handleCreateServer}
       />
 
       <ChannelList

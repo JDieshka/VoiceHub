@@ -108,6 +108,13 @@ const VoiceView: React.FC<VoiceViewProps> = ({
 
   const handleScreenShare = useCallback(async () => {
     try {
+      // Проверка доступности getDisplayMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        console.error('[VoiceView] getDisplayMedia API not available');
+        alert('Расшаривание экрана недоступно в этом окружении');
+        return;
+      }
+
       await onStartStream();
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { cursor: 'always' } as any,
@@ -122,8 +129,10 @@ const VoiceView: React.FC<VoiceViewProps> = ({
         setScreenStream(null);
         onStopStream();
       };
+      
+      console.log('[VoiceView] Screen share started');
     } catch (err) {
-      console.log('Screen share cancelled:', err);
+      console.log('[VoiceView] Screen share cancelled or failed:', err);
       onStopStream();
     }
   }, [onStartStream, onStopStream]);
