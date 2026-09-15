@@ -1,4 +1,5 @@
 import { wsService } from './websocket';
+import { audioService } from './audio';
 
 // ICE servers for NAT traversal
 const ICE_SERVERS: RTCConfiguration = {
@@ -40,21 +41,14 @@ class WebRTCService {
     wsService.on('user-left', (msg) => this.handleUserLeft(msg));
   }
 
-  // Initialize local audio stream
+  // Initialize local audio stream using AudioService
   async initLocalStream(): Promise<MediaStream> {
     if (this.localStream) return this.localStream;
 
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 48000,
-        },
-        video: false,
-      });
-      console.log('[WebRTC] Local audio stream acquired');
+      // Use AudioService for microphone capture with full processing
+      this.localStream = await audioService.initMicrophone();
+      console.log('[WebRTC] Local audio stream acquired via AudioService');
       return this.localStream;
     } catch (err) {
       console.error('[WebRTC] Failed to get local audio:', err);
@@ -124,11 +118,10 @@ class WebRTCService {
     });
     this.peers.clear();
 
-    // Stop local stream
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
-    }
+    // Stop AudioService monitoring and microphone
+    audioService.stopMonitoring();
+    audioService.stopMicrophone();
+    this.localStream = null;
 
     this.stopScreenShare();
     this.channelId = null;
@@ -277,14 +270,10 @@ class WebRTCService {
     }
   }
 
-  // Toggle mute
+  // Toggle mute using AudioService
   toggleMute(): boolean {
     this.isMuted = !this.isMuted;
-    if (this.localStream) {
-      this.localStream.getAudioTracks().forEach(track => {
-        track.enabled = !this.isMuted;
-      });
-    }
+    audioService.setMuted(this.isMuted);
     return this.isMuted;
   }
 
