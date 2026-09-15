@@ -3,7 +3,7 @@ use tauri::{command, AppHandle, Manager};
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 use auto_launch::AutoLaunchBuilder;
-use cpal::traits::HostTrait;
+use cpal::traits::{HostTrait, DeviceTrait};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemInfo {

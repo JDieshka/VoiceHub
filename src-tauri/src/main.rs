@@ -123,26 +123,25 @@ fn main() {
         })
         .setup(|app| {
             // Register global shortcuts for push-to-talk
-            let shortcut_manager = app.global_shortcut_manager();
+            let mut shortcut_manager = app.global_shortcut_manager();
             let app_handle = app.handle();
             
             // Register push-to-talk key (default: Space)
+            let app_handle_clone1 = app_handle.clone();
             let _ = shortcut_manager.register("Space", move || {
-                let state = app_handle.state::<AppState>();
+                let state = app_handle_clone1.state::<AppState>();
                 let mut active = state.push_to_talk_active.lock().unwrap();
                 *active = true;
-                let _ = app_handle.emit_all("push-to-talk", true);
+                let _ = app_handle_clone1.emit_all("push-to-talk", true);
             });
             
             // Register unbind on release
-            let _ = shortcut_manager.register("Space", {
-                let app_handle = app_handle.clone();
-                move || {
-                    let state = app_handle.state::<AppState>();
-                    let mut active = state.push_to_talk_active.lock().unwrap();
-                    *active = false;
-                    let _ = app_handle.emit_all("push-to-talk", false);
-                }
+            let app_handle_clone2 = app_handle.clone();
+            let _ = shortcut_manager.register("Space", move || {
+                let state = app_handle_clone2.state::<AppState>();
+                let mut active = state.push_to_talk_active.lock().unwrap();
+                *active = false;
+                let _ = app_handle_clone2.emit_all("push-to-talk", false);
             });
             
             // Set tray tooltip
