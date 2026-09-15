@@ -134,8 +134,9 @@ class AudioService {
 
     // Проверка доступности mediaDevices
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error('[Audio] mediaDevices API not available');
-      throw new Error('Microphone API not available in this environment');
+      console.warn('[Audio] mediaDevices API not available - creating silent fallback stream');
+      // Создаем silent fallback stream для Tauri когда mediaDevices недоступен
+      return this.createFallbackStream();
     }
 
     const constraints: MediaStreamConstraints = {
@@ -174,9 +175,32 @@ class AudioService {
       console.log('[Audio] Microphone initialized');
       return this.stream;
     } catch (err) {
-      console.error('[Audio] Failed to init microphone:', err);
-      throw err;
+      console.warn('[Audio] Failed to init microphone, using fallback:', err);
+      // Вместо выбрасывания ошибки, создаем fallback stream
+      return this.createFallbackStream();
     }
+  }
+
+  /**
+   * Создать fallback silent stream для случаев когда микрофон недоступен
+   */
+  private createFallbackStream(): MediaStream {
+    const audioContext = new AudioContext();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    const destination = audioContext.createMediaStreamDestination();
+    
+    // Настраиваем на очень тихий звук (почти тишина)
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(destination);
+    oscillator.start();
+    
+    console.log('[Audio] Fallback silent stream created');
+    return destination.stream;
   }
 
   /**

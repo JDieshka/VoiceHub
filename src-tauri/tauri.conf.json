@@ -21,7 +21,7 @@
         "all": true
       },
       "globalShortcut": {
-        "all": true
+        "all": false
       },
       "notification": {
         "all": true
@@ -39,9 +39,6 @@
       "process": {
         "all": true
       }
-    },
-    "security": {
-      "csp": "default-src 'self'; media-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
     },
     "bundle": {
       "active": true,
@@ -61,7 +58,7 @@
       "longDescription": "VoiceHub — десктопное приложение для голосового общения и трансляции экрана"
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self' data: blob: https:; media-src 'self' blob: data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
     },
     "updater": {
       "active": false
