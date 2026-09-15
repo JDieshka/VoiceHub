@@ -59,6 +59,10 @@ const VoiceView: React.FC<VoiceViewProps> = ({
         setMicInitialized(true);
       } catch (err) {
         console.error('[VoiceView] Failed to init mic:', err);
+        // Показать пользователю ошибку
+        console.warn('[VoiceView] Microphone not available. Voice chat will not work.');
+        // Продолжить работу без микрофона
+        setMicInitialized(false);
       }
     };
     

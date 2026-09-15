@@ -84,14 +84,22 @@ class WebRTCService {
       return this.localStream;
     } catch (err) {
       console.error('[WebRTC] Failed to get local audio:', err);
+      console.warn('[WebRTC] Microphone not available. Creating silent stream as fallback.');
       // Create silent stream as fallback
-      const ctx = new AudioContext();
-      const oscillator = ctx.createOscillator();
-      const dst = ctx.createMediaStreamDestination();
-      oscillator.connect(dst);
-      oscillator.start();
-      this.localStream = dst.stream;
-      return this.localStream;
+      try {
+        const ctx = new AudioContext();
+        const oscillator = ctx.createOscillator();
+        const dst = ctx.createMediaStreamDestination();
+        oscillator.connect(dst);
+        oscillator.start();
+        this.localStream = dst.stream;
+        return this.localStream;
+      } catch (fallbackErr) {
+        console.error('[WebRTC] Failed to create fallback stream:', fallbackErr);
+        // Не выбрасываем ошибку, продолжаем без микрофона
+        this.localStream = null;
+        return null as any;
+      }
     }
   }
 

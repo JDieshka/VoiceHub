@@ -132,6 +132,12 @@ class AudioService {
     // Остановить предыдущий стрим
     this.stopMicrophone();
 
+    // Проверка доступности mediaDevices
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('[Audio] mediaDevices API not available');
+      throw new Error('Microphone API not available in this environment');
+    }
+
     const constraints: MediaStreamConstraints = {
       audio: {
         deviceId: deviceId ? { exact: deviceId } : undefined,

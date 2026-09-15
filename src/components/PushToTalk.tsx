@@ -14,7 +14,7 @@ const PushToTalk: React.FC<PushToTalkProps> = ({
   onDeactivate 
 }) => {
   const [hotkey, setHotkey] = useState<string>(() => {
-    return localStorage.getItem('voicehub-ptt-key') || 'Space';
+    return localStorage.getItem('voicehub-ptt-key') || 'F8';
   });
   const [isRecording, setIsRecording] = useState(false);
   const [isPressed, setIsPressed] = useState(false);

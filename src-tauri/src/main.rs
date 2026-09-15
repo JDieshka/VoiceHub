@@ -122,27 +122,8 @@ fn main() {
             }
         })
         .setup(|app| {
-            // Register global shortcuts for push-to-talk
-            let mut shortcut_manager = app.global_shortcut_manager();
-            let app_handle = app.handle();
-            
-            // Register push-to-talk key (default: Space)
-            let app_handle_clone1 = app_handle.clone();
-            let _ = shortcut_manager.register("Space", move || {
-                let state = app_handle_clone1.state::<AppState>();
-                let mut active = state.push_to_talk_active.lock().unwrap();
-                *active = true;
-                let _ = app_handle_clone1.emit_all("push-to-talk", true);
-            });
-            
-            // Register unbind on release
-            let app_handle_clone2 = app_handle.clone();
-            let _ = shortcut_manager.register("Space", move || {
-                let state = app_handle_clone2.state::<AppState>();
-                let mut active = state.push_to_talk_active.lock().unwrap();
-                *active = false;
-                let _ = app_handle_clone2.emit_all("push-to-talk", false);
-            });
+            // Global shortcuts are now optional and disabled by default
+            // Users can enable them in settings if needed
             
             // Set tray tooltip
             let _ = app.tray_handle().set_tooltip("VoiceHub - Не подключен");
