@@ -137,6 +137,3 @@ console.log(`✓ Created: icon.ico`);
 
 console.log('\n✅ Placeholder icons created!');
 console.log(`\n📁 Location: ${ICONS_DIR}`);
-console.log('\n💡 Note: These are placeholder icons.');
-console.log('   Replace with real icons before release.');
-console.log('   See ICONS_GUIDE.md for instructions.');

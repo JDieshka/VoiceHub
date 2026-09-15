@@ -32,6 +32,9 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^1.6"
 
+      - name: Generate icons
+        run: node scripts/create-placeholder-icons.js
+
       - name: Build Tauri app
         run: cargo tauri build
 
@@ -76,6 +79,9 @@ jobs:
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^1.6"
+
+      - name: Generate icons
+        run: node scripts/create-placeholder-icons.js
 
       - name: Build Tauri app
         run: cargo tauri build
