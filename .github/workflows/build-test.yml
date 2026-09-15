@@ -2,9 +2,8 @@ name: Build Test
 
 on:
   push:
-    branches:
+    branches-ignore:
       - main
-      - develop
   pull_request:
     branches:
       - main
@@ -41,7 +40,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: voicehub-windows
+          name: voicehub-windows-test
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe

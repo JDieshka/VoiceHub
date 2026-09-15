@@ -30,6 +30,27 @@
 └──────────────────────────────────────────────────────────┘
 ```
 
+## 🚀 Автоматические релизы
+
+Проект использует систему автоматических релизов! Просто измените версию в `package.json` и запушьте в `main`:
+
+```bash
+# Измените версию в package.json
+# "version": "2.1.0"
+
+git add package.json
+git commit -m "chore: bump version to 2.1.0"
+git push origin main
+```
+
+GitHub Actions автоматически:
+- ✅ Создаст тег `v2.1.0`
+- ✅ Соберет frontend и Windows приложение
+- ✅ Создает GitHub Release
+- ✅ Загрузит все файлы
+
+**Подробности:** [AUTO_RELEASE.md](./AUTO_RELEASE.md)
+
 ## Что реализовано
 
 ### Этап 1: WebSocket-сервер на Go ✅
