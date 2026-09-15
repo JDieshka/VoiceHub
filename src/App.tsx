@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Server, VoiceChannel, TextChannel } from './types';
 import { servers, currentUser, generateMessage } from './store';
 import ServerSidebar from './components/ServerSidebar';
@@ -6,6 +6,8 @@ import ChannelList from './components/ChannelList';
 import Chat from './components/Chat';
 import VoiceView from './components/VoiceView';
 import MembersList from './components/MembersList';
+import { wsService } from './services/websocket';
+import { webrtcService } from './services/webrtc';
 
 type ViewMode = 'text' | 'voice' | 'welcome';
 
@@ -18,8 +20,48 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [serverData, setServerData] = useState<Server[]>(servers);
   const [showMembers, setShowMembers] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
 
   const activeServer = serverData.find(s => s.id === activeServerId) || serverData[0];
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const connect = async () => {
+      const connected = await wsService.connect();
+      setIsConnected(connected);
+
+      if (connected) {
+        console.log('[App] Connected to VoiceHub server');
+      } else {
+        console.log('[App] Running in offline/demo mode');
+      }
+    };
+
+    connect();
+
+    // Setup WebRTC callbacks
+    webrtcService.setOnRemoteStream((userId, stream) => {
+      setRemoteStreams(prev => {
+        const next = new Map(prev);
+        next.set(userId, stream);
+        return next;
+      });
+    });
+
+    webrtcService.setOnRemoteStreamRemoved((userId) => {
+      setRemoteStreams(prev => {
+        const next = new Map(prev);
+        next.delete(userId);
+        return next;
+      });
+    });
+
+    return () => {
+      wsService.disconnect();
+      webrtcService.leaveChannel();
+    };
+  }, []);
 
   const handleSelectServer = (id: string) => {
     setActiveServerId(id);
@@ -27,7 +69,7 @@ function App() {
     setViewMode('welcome');
   };
 
-  const handleSelectChannel = (id: string) => {
+  const handleSelectChannel = async (id: string) => {
     setActiveChannelId(id);
     const server = serverData.find(s => s.id === activeServerId);
     if (server) {
@@ -36,6 +78,13 @@ function App() {
       
       if (voiceChannel) {
         setViewMode('voice');
+        
+        // Connect to server if available
+        if (isConnected) {
+          wsService.joinChannel(id, { name: currentUser.name, avatar: currentUser.avatar });
+          await webrtcService.joinChannel(id);
+        }
+
         // Add current user to channel
         setServerData(prev => prev.map(s => {
           if (s.id === activeServerId) {
@@ -63,6 +112,12 @@ function App() {
 
   const handleSendMessage = (content: string) => {
     const newMessage = generateMessage(content);
+    
+    // Send to server if connected
+    if (isConnected && activeChannelId) {
+      wsService.sendTextMessage(activeChannelId, content);
+    }
+
     setServerData(prev => prev.map(s => {
       if (s.id === activeServerId) {
         return {
@@ -80,6 +135,12 @@ function App() {
   };
 
   const handleLeaveVoice = () => {
+    // Leave on server
+    if (isConnected && activeChannelId) {
+      wsService.leaveChannel(activeChannelId);
+      webrtcService.leaveChannel();
+    }
+
     setServerData(prev => prev.map(s => {
       if (s.id === activeServerId) {
         return {
@@ -94,21 +155,33 @@ function App() {
     }));
     setActiveChannelId(null);
     setViewMode('welcome');
+    setRemoteStreams(new Map());
   };
 
-  const handleToggleMute = useCallback(() => {
-    setIsMuted(prev => !prev);
-  }, []);
+  const handleToggleMute = useCallback(async () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    
+    if (isConnected) {
+      webrtcService.toggleMute();
+    }
+  }, [isMuted, isConnected]);
 
   const handleToggleDeafen = useCallback(() => {
     setIsDeafened(prev => !prev);
   }, []);
 
-  const handleStartStream = useCallback(() => {
-    setIsStreaming(true);
+  const handleStartStream = useCallback(async () => {
+    try {
+      await webrtcService.startScreenShare();
+      setIsStreaming(true);
+    } catch (err) {
+      console.error('Failed to start screen share:', err);
+    }
   }, []);
 
   const handleStopStream = useCallback(() => {
+    webrtcService.stopScreenShare();
     setIsStreaming(false);
   }, []);
 
@@ -154,6 +227,12 @@ function App() {
         <div className="flex-1 flex flex-col bg-[#313338]">
           <div className="h-12 px-4 flex items-center border-b border-[#1f2023] shadow-sm">
             <h3 className="font-semibold text-white">{activeServer.name}</h3>
+            <div className="ml-auto flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#23a559]' : 'bg-[#ed4245]'}`}></div>
+              <span className="text-xs text-[#949ba4]">
+                {isConnected ? 'Сервер подключен' : 'Демо-режим'}
+              </span>
+            </div>
           </div>
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center max-w-md">
@@ -181,9 +260,9 @@ function App() {
                   <p className="text-xs text-[#949ba4]">Обменивайтесь сообщениями</p>
                 </div>
                 <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
-                  <div className="text-2xl mb-2">🎵</div>
-                  <h4 className="text-white font-medium text-sm mb-1">Музыка</h4>
-                  <p className="text-xs text-[#949ba4]">Слушайте музыку вместе</p>
+                  <div className="text-2xl mb-2">🔗</div>
+                  <h4 className="text-white font-medium text-sm mb-1">WebRTC P2P</h4>
+                  <p className="text-xs text-[#949ba4]">Прямое соединение между клиентами</p>
                 </div>
               </div>
             </div>
@@ -210,6 +289,8 @@ function App() {
           onToggleDeafen={handleToggleDeafen}
           onStartStream={handleStartStream}
           onStopStream={handleStopStream}
+          remoteStreams={remoteStreams}
+          isConnected={isConnected}
         />
       )}
     </div>
