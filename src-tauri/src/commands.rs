@@ -1,8 +1,9 @@
 use crate::AppState;
 use tauri::{command, AppHandle, Manager};
 use serde::{Deserialize, Serialize};
-use sysinfo::{System, SystemExt, CpuExt};
+use sysinfo::System;
 use auto_launch::AutoLaunchBuilder;
+use cpal::traits::HostTrait;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemInfo {
@@ -34,11 +35,18 @@ pub fn get_system_info() -> SystemInfo {
     let mut sys = System::new_all();
     sys.refresh_all();
     
+    // Calculate average CPU usage
+    let cpu_usage = if !sys.cpus().is_empty() {
+        sys.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / sys.cpus().len() as f32
+    } else {
+        0.0
+    };
+    
     SystemInfo {
         os_name: System::name().unwrap_or_else(|| "Unknown".to_string()),
         os_version: System::os_version().unwrap_or_else(|| "Unknown".to_string()),
         cpu_count: sys.cpus().len(),
-        cpu_usage: sys.global_cpu_info().cpu_usage(),
+        cpu_usage,
         total_memory: sys.total_memory(),
         used_memory: sys.used_memory(),
         app_version: env!("CARGO_PKG_VERSION").to_string(),

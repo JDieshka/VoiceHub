@@ -76,16 +76,12 @@ fn main() {
                         // Emit event to frontend
                         let _ = app.emit_all("mute-toggled", muted);
                         
-                        // Update tray tooltip
-                        if let Some(tray) = app.tray_handle().get_menu().get_item("mute") {
-                            let _ = tray.set_title(if muted { "Включить микрофон" } else { "Выключить микрофон" });
-                        }
-                        
                         // Show notification
                         let _ = app.emit_all("notification", format!(
                             "Микрофон {}", if muted { "выключен" } else { "включен" }
                         ));
                         
+                        // Update tray menu
                         tray::update_tray_menu(app);
                     }
                     "deafen" => {

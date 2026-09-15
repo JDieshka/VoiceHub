@@ -15,8 +15,8 @@ const __dirname = path.dirname(__filename);
 
 const ICONS_DIR = path.join(__dirname, '..', 'src-tauri', 'icons');
 
-// Create minimal PNG file
-function createMinimalPNG(width, height, r, g, b) {
+// Create minimal PNG file (RGBA format)
+function createMinimalPNG(width, height, r, g, b, a = 255) {
   // PNG signature
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   
@@ -25,7 +25,7 @@ function createMinimalPNG(width, height, r, g, b) {
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
   ihdr.writeUInt8(8, 8); // bit depth
-  ihdr.writeUInt8(2, 9); // color type (RGB)
+  ihdr.writeUInt8(6, 9); // color type (RGBA)
   ihdr.writeUInt8(0, 10); // compression
   ihdr.writeUInt8(0, 11); // filter
   ihdr.writeUInt8(0, 12); // interlace
@@ -33,14 +33,15 @@ function createMinimalPNG(width, height, r, g, b) {
   const ihdrChunk = createChunk('IHDR', ihdr);
   
   // IDAT chunk (image data)
-  const rawData = Buffer.alloc((width * 3 + 1) * height);
+  const rawData = Buffer.alloc((width * 4 + 1) * height);
   for (let y = 0; y < height; y++) {
-    rawData[y * (width * 3 + 1)] = 0; // filter type
+    rawData[y * (width * 4 + 1)] = 0; // filter type
     for (let x = 0; x < width; x++) {
-      const offset = y * (width * 3 + 1) + 1 + x * 3;
+      const offset = y * (width * 4 + 1) + 1 + x * 4;
       rawData[offset] = r;
       rawData[offset + 1] = g;
       rawData[offset + 2] = b;
+      rawData[offset + 3] = a;
     }
   }
   

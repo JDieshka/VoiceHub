@@ -1,4 +1,4 @@
-use cpal::traits::{DeviceTrait, HostTrait};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,6 +133,7 @@ pub fn test_output_device(device_name: &str) -> Result<(), String> {
                 }
             },
             err_fn,
+            None,
         ),
         _ => return Err("Unsupported sample format".to_string()),
     }.map_err(|e| e.to_string())?;
@@ -183,6 +184,7 @@ pub fn monitor_input_level(device_name: Option<&str>) -> Result<f32, String> {
                 *level_clone.lock().unwrap() = max;
             },
             err_fn,
+            None,
         ),
         _ => return Err("Unsupported sample format".to_string()),
     }.map_err(|e| e.to_string())?;
