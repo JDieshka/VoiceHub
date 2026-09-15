@@ -12,6 +12,8 @@ import { webrtcService } from './services/webrtc';
 import { sfuClient } from './services/sfu';
 import { authService } from './services/auth';
 import ConnectionModeSelector, { ConnectionMode } from './components/ConnectionModeSelector';
+import DesktopSettings from './components/DesktopSettings';
+import { desktopAPI } from './services/tauri';
 
 type ViewMode = 'text' | 'voice' | 'welcome';
 
@@ -30,6 +32,7 @@ function App() {
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>(() => {
     return (localStorage.getItem('voicehub-connection-mode') as ConnectionMode) || 'auto';
   });
+  const [showDesktopSettings, setShowDesktopSettings] = useState(false);
 
   const activeServer = serverData.find(s => s.id === activeServerId) || serverData[0];
 
@@ -352,7 +355,21 @@ function App() {
                     <div className={`w-2 h-2 rounded-full ${sfuClient.getIsConnected() ? 'bg-[#23a559]' : 'bg-[#80848e]'}`}></div>
                     <span>SFU: {sfuClient.getIsConnected() ? 'Активен' : 'Не подключен'}</span>
                   </div>
+                  {desktopAPI.isDesktop() && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-[#23a559]"></div>
+                      <span>Desktop: Активен</span>
+                    </div>
+                  )}
                 </div>
+                {desktopAPI.isDesktop() && (
+                  <button
+                    onClick={() => setShowDesktopSettings(true)}
+                    className="mt-3 w-full bg-[#5865f2] hover:bg-[#4752c4] text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                  >
+                    ⚙️ Настройки рабочего стола
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -383,6 +400,9 @@ function App() {
           connectionMode={connectionMode}
         />
       )}
+
+      {/* Desktop Settings Modal */}
+      <DesktopSettings isOpen={showDesktopSettings} onClose={() => setShowDesktopSettings(false)} />
     </div>
   );
 }
