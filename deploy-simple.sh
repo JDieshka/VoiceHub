@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Скрипт деплоя VoiceHub на сервер 31.77.158.177
-# Использование: ./deploy.sh
+# Простой скрипт деплоя VoiceHub на сервер 31.77.158.177
+# Использует только scp (есть везде по умолчанию)
+# Использование: ./deploy-simple.sh
 
 set -e
 
@@ -9,7 +10,7 @@ SERVER_IP="31.77.158.177"
 SERVER_USER="root"
 PROJECT_DIR="/opt/voicehub"
 
-echo "🚀 Деплой VoiceHub на $SERVER_IP"
+echo "🚀 Деплой VoiceHub на $SERVER_IP (простой режим)"
 echo ""
 
 # Проверка SSH подключения
@@ -29,16 +30,23 @@ echo ""
 echo "📁 Создание директории проекта..."
 ssh $SERVER_USER@$SERVER_IP "mkdir -p $PROJECT_DIR"
 
-# Копирование файлов с помощью tar + ssh (быстрее и надежнее чем scp)
-echo "📤 Копирование файлов..."
-tar czf - \
-    --exclude='node_modules' \
-    --exclude='.git' \
-    --exclude='dist' \
-    --exclude='target' \
-    --exclude='*.log' \
-    --exclude='.env.local' \
-    . | ssh $SERVER_USER@$SERVER_IP "cd $PROJECT_DIR && tar xzf -"
+# Копирование файлов с помощью scp
+echo "📤 Копирование файлов (это может занять время)..."
+
+# Копируем основные файлы
+scp -r ./server $SERVER_USER@$SERVER_IP:$PROJECT_DIR/
+scp -r ./src $SERVER_USER@$SERVER_IP:$PROJECT_DIR/
+scp -r ./src-tauri $SERVER_USER@$SERVER_IP:$PROJECT_DIR/ 2>/dev/null || true
+scp -r ./docs $SERVER_USER@$SERVER_IP:$PROJECT_DIR/ 2>/dev/null || true
+
+# Копируем конфигурационные файлы
+scp ./package.json $SERVER_USER@$SERVER_IP:$PROJECT_DIR/
+scp ./tsconfig.json $SERVER_USER@$SERVER_IP:$PROJECT_DIR/ 2>/dev/null || true
+scp ./vite.config.ts $SERVER_USER@$SERVER_IP:$PROJECT_DIR/ 2>/dev/null || true
+scp ./tailwind.config.js $SERVER_USER@$SERVER_IP:$PROJECT_DIR/ 2>/dev/null || true
+scp ./postcss.config.js $SERVER_USER@$SERVER_IP:$PROJECT_DIR/ 2>/dev/null || true
+scp ./.env $SERVER_USER@$SERVER_IP:$PROJECT_DIR/ 2>/dev/null || true
+scp ./index.html $SERVER_USER@$SERVER_IP:$PROJECT_DIR/
 
 echo "✅ Файлы скопированы"
 echo ""
