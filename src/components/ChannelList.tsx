@@ -29,6 +29,8 @@ const ChannelList: React.FC<ChannelListProps> = ({
 }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newChannelType, setNewChannelType] = useState<'text' | 'voice'>('text');
+  const [textChannelsCollapsed, setTextChannelsCollapsed] = useState(false);
+  const [voiceChannelsCollapsed, setVoiceChannelsCollapsed] = useState(false);
 
   const handleCreateClick = (type: 'text' | 'voice') => {
     setNewChannelType(type);
@@ -37,6 +39,14 @@ const ChannelList: React.FC<ChannelListProps> = ({
 
   const handleCreateChannel = (name: string, type: 'text' | 'voice') => {
     onCreateChannel(name, type);
+  };
+
+  const toggleTextChannels = () => {
+    setTextChannelsCollapsed(!textChannelsCollapsed);
+  };
+
+  const toggleVoiceChannels = () => {
+    setVoiceChannelsCollapsed(!voiceChannelsCollapsed);
   };
 
   return (
@@ -54,10 +64,22 @@ const ChannelList: React.FC<ChannelListProps> = ({
         {/* Text channels */}
         <div>
           <div className="flex items-center justify-between px-2 mb-2 group">
-            <div className="flex items-center">
+            <button
+              onClick={toggleTextChannels}
+              className="flex items-center flex-1 hover:text-white transition-colors"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className={`mr-1 transition-transform ${textChannelsCollapsed ? '-rotate-90' : ''}`}
+              >
+                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+              </svg>
               <span className="text-sm mr-1.5">💬</span>
               <span className="text-[11px] font-bold text-[#949ba4] uppercase tracking-wider">Текстовые каналы</span>
-            </div>
+            </button>
             <button
               onClick={() => handleCreateClick('text')}
               className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-[#b5bac1] hover:text-white hover:bg-[#35373c] transition-all"
@@ -68,31 +90,45 @@ const ChannelList: React.FC<ChannelListProps> = ({
               </svg>
             </button>
           </div>
-          <div className="space-y-0.5">
-            {server.textChannels.map((channel) => (
-              <button
-                key={channel.id}
-                onClick={() => onSelectChannel(channel.id)}
-                className={`w-full flex items-center px-2 py-1.5 rounded-md transition-all group ${
-                  activeChannel === channel.id
-                    ? 'bg-[#404249] text-white shadow-sm'
-                    : 'text-[#949ba4] hover:text-[#dbdee1] hover:bg-[#35373c]'
-                }`}
-              >
-                <span className="mr-2 text-[#80848e] text-base font-normal">#</span>
-                <span className="text-[15px] truncate font-medium">{channel.name}</span>
-              </button>
-            ))}
-          </div>
+          {!textChannelsCollapsed && (
+            <div className="space-y-0.5">
+              {server.textChannels.map((channel) => (
+                <button
+                  key={channel.id}
+                  onClick={() => onSelectChannel(channel.id)}
+                  className={`w-full flex items-center px-2 py-1.5 rounded-md transition-all group ${
+                    activeChannel === channel.id
+                      ? 'bg-[#404249] text-white shadow-sm'
+                      : 'text-[#949ba4] hover:text-[#dbdee1] hover:bg-[#35373c]'
+                  }`}
+                >
+                  <span className="mr-2 text-[#80848e] text-base font-normal">#</span>
+                  <span className="text-[15px] truncate font-medium">{channel.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Voice channels */}
         <div>
           <div className="flex items-center justify-between px-2 mb-2 group">
-            <div className="flex items-center">
+            <button
+              onClick={toggleVoiceChannels}
+              className="flex items-center flex-1 hover:text-white transition-colors"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className={`mr-1 transition-transform ${voiceChannelsCollapsed ? '-rotate-90' : ''}`}
+              >
+                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+              </svg>
               <span className="text-sm mr-1.5">🔊</span>
               <span className="text-[11px] font-bold text-[#949ba4] uppercase tracking-wider">Голосовые каналы</span>
-            </div>
+            </button>
             <button
               onClick={() => handleCreateClick('voice')}
               className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-[#b5bac1] hover:text-white hover:bg-[#35373c] transition-all"
@@ -103,16 +139,18 @@ const ChannelList: React.FC<ChannelListProps> = ({
               </svg>
             </button>
           </div>
-          <div className="space-y-0.5">
-            {server.voiceChannels.map((channel) => (
-              <VoiceChannelItem
-                key={channel.id}
-                channel={channel}
-                isActive={activeChannel === channel.id}
-                onSelect={() => onSelectChannel(channel.id)}
-              />
-            ))}
-          </div>
+          {!voiceChannelsCollapsed && (
+            <div className="space-y-0.5">
+              {server.voiceChannels.map((channel) => (
+                <VoiceChannelItem
+                  key={channel.id}
+                  channel={channel}
+                  isActive={activeChannel === channel.id}
+                  onSelect={() => onSelectChannel(channel.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

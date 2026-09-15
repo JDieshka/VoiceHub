@@ -5,7 +5,6 @@ import ServerSidebar from './components/ServerSidebar';
 import ChannelList from './components/ChannelList';
 import Chat from './components/Chat';
 import VoiceView from './components/VoiceView';
-import MembersList from './components/MembersList';
 import AuthPage from './components/AuthPage';
 import { wsService } from './services/websocket';
 import { webrtcService } from './services/webrtc';
@@ -443,7 +442,6 @@ function App() {
       {viewMode === 'text' && activeTextChannel && (
         <div className="flex-1 flex">
           <Chat channel={activeTextChannel} onSendMessage={handleSendMessage} />
-          {showMembers && <MembersList />}
         </div>
       )}
 
