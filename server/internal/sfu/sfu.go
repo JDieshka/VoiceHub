@@ -9,41 +9,37 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/pion/interceptor"
-	"github.com/pion/interceptor/pkg/intervalpacer"
-	"github.com/pion/interceptor/pkg/report"
-	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v4"
 )
 
 // SFU represents the Selective Forwarding Unit
 type SFU struct {
-	mu          sync.RWMutex
-	rooms       map[string]*Room
-	api         *webrtc.API
-	config      SFUConfig
+	mu     sync.RWMutex
+	rooms  map[string]*Room
+	api    *webrtc.API
+	config SFUConfig
 }
 
 // Room represents a voice channel room
 type Room struct {
-	mu        sync.RWMutex
-	id        string
-	peers     map[string]*Peer
-	onClose   func()
+	mu      sync.RWMutex
+	id      string
+	peers   map[string]*Peer
+	onClose func()
 }
 
 // Peer represents a connected client in a room
 type Peer struct {
-	mu           sync.RWMutex
-	id           string
-	name         string
-	room         *Room
-	conn         *webrtc.PeerConnection
-	wsConn       *websocket.Conn
-	tracks       map[string]*webrtc.TrackLocalStaticRTP
-	subscribers  map[string]*webrtc.TrackLocalStaticRTP
-	closed       bool
-	onClose      func()
+	mu          sync.RWMutex
+	id          string
+	name        string
+	room        *Room
+	conn        *webrtc.PeerConnection
+	wsConn      *websocket.Conn
+	tracks      map[string]*webrtc.TrackLocalStaticRTP
+	subscribers map[string]*webrtc.TrackLocalStaticRTP
+	closed      bool
+	onClose     func()
 }
 
 // SFUConfig holds SFU configuration
@@ -70,27 +66,9 @@ func NewSFU(config SFUConfig) (*SFU, error) {
 		return nil, fmt.Errorf("failed to register codecs: %w", err)
 	}
 
-	// Create InterceptorRegistry
-	i := &interceptor.Registry{}
-	
-	// Add interval pacer
-	pacer, err := intervalpacer.New()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create pacer: %w", err)
-	}
-	i.Add(pacer)
-	
-	// Add report interceptor for stats
-	reportInterceptor, err := report.NewSenderInterceptor()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create report interceptor: %w", err)
-	}
-	i.Add(reportInterceptor)
-
-	// Create API
+	// Create API without interceptors (simplified)
 	api := webrtc.NewAPI(
 		webrtc.WithMediaEngine(m),
-		webrtc.WithInterceptorRegistry(i),
 	)
 
 	return &SFU{
@@ -110,13 +88,10 @@ func (s *SFU) HandleWebSocket(wsConn *websocket.Conn, peerID, peerName string) e
 		subscribers: make(map[string]*webrtc.TrackLocalStaticRTP),
 	}
 
-	// Start WebSocket read loop
 	go s.readPump(peer)
-
 	return nil
 }
 
-// readPump reads messages from WebSocket
 func (s *SFU) readPump(peer *Peer) {
 	defer func() {
 		peer.wsConn.Close()
@@ -147,12 +122,10 @@ func (s *SFU) readPump(peer *Peer) {
 
 		msg.From = peer.id
 		msg.Timestamp = time.Now()
-
 		s.handleMessage(peer, msg)
 	}
 }
 
-// handleMessage processes incoming messages
 func (s *SFU) handleMessage(peer *Peer, msg SignalMessage) {
 	switch msg.Type {
 	case "join":
@@ -170,14 +143,12 @@ func (s *SFU) handleMessage(peer *Peer, msg SignalMessage) {
 	}
 }
 
-// handleJoin handles peer joining a room
 func (s *SFU) handleJoin(peer *Peer, msg SignalMessage) {
 	roomID := msg.RoomID
 	if roomID == "" {
 		return
 	}
 
-	// Create or get room
 	s.mu.Lock()
 	room, exists := s.rooms[roomID]
 	if !exists {
@@ -190,13 +161,11 @@ func (s *SFU) handleJoin(peer *Peer, msg SignalMessage) {
 	}
 	s.mu.Unlock()
 
-	// Add peer to room
 	room.mu.Lock()
 	peer.room = room
 	room.peers[peer.id] = peer
 	room.mu.Unlock()
 
-	// Create PeerConnection
 	pc, err := s.createPeerConnection(peer)
 	if err != nil {
 		log.Printf("[SFU] Failed to create PeerConnection for %s: %v", peer.id, err)
@@ -207,7 +176,6 @@ func (s *SFU) handleJoin(peer *Peer, msg SignalMessage) {
 	peer.conn = pc
 	peer.mu.Unlock()
 
-	// Notify room about new peer
 	s.broadcastToRoom(room, SignalMessage{
 		Type:      "peer-joined",
 		RoomID:    roomID,
@@ -219,19 +187,16 @@ func (s *SFU) handleJoin(peer *Peer, msg SignalMessage) {
 	log.Printf("[SFU] Peer %s (%s) joined room %s", peer.id, peer.name, roomID)
 }
 
-// handleLeave handles peer leaving a room
 func (s *SFU) handleLeave(peer *Peer, msg SignalMessage) {
 	s.removePeer(peer)
 }
 
-// handleOffer handles SDP offer
 func (s *SFU) handleOffer(peer *Peer, msg SignalMessage) {
 	peer.mu.RLock()
 	pc := peer.conn
 	peer.mu.RUnlock()
 
 	if pc == nil {
-		log.Printf("[SFU] No PeerConnection for peer %s", peer.id)
 		return
 	}
 
@@ -257,7 +222,6 @@ func (s *SFU) handleOffer(peer *Peer, msg SignalMessage) {
 		return
 	}
 
-	// Send answer back to peer
 	s.sendToPeer(peer, SignalMessage{
 		Type:      "answer",
 		RoomID:    peer.room.id,
@@ -267,7 +231,6 @@ func (s *SFU) handleOffer(peer *Peer, msg SignalMessage) {
 	})
 }
 
-// handleAnswer handles SDP answer
 func (s *SFU) handleAnswer(peer *Peer, msg SignalMessage) {
 	peer.mu.RLock()
 	pc := peer.conn
@@ -279,16 +242,12 @@ func (s *SFU) handleAnswer(peer *Peer, msg SignalMessage) {
 
 	var answer webrtc.SessionDescription
 	if err := json.Unmarshal(msg.Payload, &answer); err != nil {
-		log.Printf("[SFU] Failed to unmarshal answer: %v", err)
 		return
 	}
 
-	if err := pc.SetRemoteDescription(answer); err != nil {
-		log.Printf("[SFU] Failed to set remote description: %v", err)
-	}
+	pc.SetRemoteDescription(answer)
 }
 
-// handleICECandidate handles ICE candidate
 func (s *SFU) handleICECandidate(peer *Peer, msg SignalMessage) {
 	peer.mu.RLock()
 	pc := peer.conn
@@ -300,16 +259,12 @@ func (s *SFU) handleICECandidate(peer *Peer, msg SignalMessage) {
 
 	var candidate webrtc.ICECandidateInit
 	if err := json.Unmarshal(msg.Payload, &candidate); err != nil {
-		log.Printf("[SFU] Failed to unmarshal ICE candidate: %v", err)
 		return
 	}
 
-	if err := pc.AddICECandidate(candidate); err != nil {
-		log.Printf("[SFU] Failed to add ICE candidate: %v", err)
-	}
+	pc.AddICECandidate(candidate)
 }
 
-// createPeerConnection creates a new PeerConnection for a peer
 func (s *SFU) createPeerConnection(peer *Peer) (*webrtc.PeerConnection, error) {
 	config := webrtc.Configuration{
 		ICEServers: s.config.ICEServers,
@@ -320,11 +275,9 @@ func (s *SFU) createPeerConnection(peer *Peer) (*webrtc.PeerConnection, error) {
 		return nil, err
 	}
 
-	// Handle incoming tracks
 	pc.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		log.Printf("[SFU] Peer %s sent track: %s (%s)", peer.id, track.ID(), track.Codec().MimeType)
 
-		// Create local track for forwarding
 		localTrack, err := webrtc.NewTrackLocalStaticRTP(
 			track.Codec().RTPCodecCapability,
 			track.ID(),
@@ -335,12 +288,10 @@ func (s *SFU) createPeerConnection(peer *Peer) (*webrtc.PeerConnection, error) {
 			return
 		}
 
-		// Store track
 		peer.mu.Lock()
 		peer.tracks[track.ID()] = localTrack
 		peer.mu.Unlock()
 
-		// Forward to all other peers in room
 		peer.room.mu.RLock()
 		for _, otherPeer := range peer.room.peers {
 			if otherPeer.id == peer.id {
@@ -353,26 +304,21 @@ func (s *SFU) createPeerConnection(peer *Peer) (*webrtc.PeerConnection, error) {
 				continue
 			}
 
-			// Read RTCP to allow sender to send PLI/FIR
 			go s.readRTCP(otherPeer, sender)
 
-			// Store subscriber track
 			otherPeer.mu.Lock()
 			otherPeer.subscribers[peer.id] = localTrack
 			otherPeer.mu.Unlock()
 		}
 		peer.room.mu.RUnlock()
 
-		// Read RTP packets and write to local track
 		go s.forwardRTP(peer, track, localTrack)
 	})
 
-	// Handle ICE candidates
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
 			return
 		}
-
 		candidate := c.ToJSON()
 		s.sendToPeer(peer, SignalMessage{
 			Type:      "ice-candidate",
@@ -383,10 +329,8 @@ func (s *SFU) createPeerConnection(peer *Peer) (*webrtc.PeerConnection, error) {
 		})
 	})
 
-	// Handle connection state
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		log.Printf("[SFU] Peer %s connection state: %s", peer.id, state)
-		
 		if state == webrtc.PeerConnectionStateFailed || state == webrtc.PeerConnectionStateClosed {
 			s.removePeer(peer)
 		}
@@ -395,33 +339,25 @@ func (s *SFU) createPeerConnection(peer *Peer) (*webrtc.PeerConnection, error) {
 	return pc, nil
 }
 
-// forwardRTP forwards RTP packets from remote track to local track
 func (s *SFU) forwardRTP(peer *Peer, remoteTrack *webrtc.TrackRemote, localTrack *webrtc.TrackLocalStaticRTP) {
 	buf := make([]byte, 1500)
 	for {
 		n, _, err := remoteTrack.Read(buf)
 		if err != nil {
-			if err == webrtc.ErrClosedPipe {
-				return
-			}
-			log.Printf("[SFU] Error reading RTP from %s: %v", peer.id, err)
 			return
 		}
-
 		if _, err := localTrack.Write(buf[:n]); err != nil {
 			log.Printf("[SFU] Error writing RTP: %v", err)
 		}
 	}
 }
 
-// readRTCP reads RTCP packets for sender
 func (s *SFU) readRTCP(peer *Peer, sender *webrtc.RTPSender) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[SFU] Panic in readRTCP: %v", r)
 		}
 	}()
-
 	for {
 		_, _, err := sender.ReadRTCP()
 		if err != nil {
@@ -430,7 +366,6 @@ func (s *SFU) readRTCP(peer *Peer, sender *webrtc.RTPSender) {
 	}
 }
 
-// removePeer removes a peer from the system
 func (s *SFU) removePeer(peer *Peer) {
 	peer.mu.Lock()
 	if peer.closed {
@@ -438,7 +373,6 @@ func (s *SFU) removePeer(peer *Peer) {
 		return
 	}
 	peer.closed = true
-	
 	if peer.conn != nil {
 		peer.conn.Close()
 	}
@@ -450,96 +384,49 @@ func (s *SFU) removePeer(peer *Peer) {
 	if peer.room != nil {
 		peer.room.mu.Lock()
 		delete(peer.room.peers, peer.id)
-		
-		// Notify room about peer leaving
 		s.broadcastToRoom(peer.room, SignalMessage{
 			Type:      "peer-left",
 			RoomID:    peer.room.id,
 			From:      peer.id,
 			Timestamp: time.Now(),
 		}, peer.id)
-		
-		// Clean up if room is empty
 		if len(peer.room.peers) == 0 {
 			s.mu.Lock()
 			delete(s.rooms, peer.room.id)
 			s.mu.Unlock()
-			log.Printf("[SFU] Room %s closed (empty)", peer.room.id)
 		}
 		peer.room.mu.Unlock()
 	}
-
-	log.Printf("[SFU] Peer %s removed", peer.id)
 }
 
-// broadcastToRoom sends a message to all peers in a room
 func (s *SFU) broadcastToRoom(room *Room, msg SignalMessage, excludePeerID string) {
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return
-	}
-
+	data, _ := json.Marshal(msg)
 	room.mu.RLock()
 	defer room.mu.RUnlock()
-
 	for _, peer := range room.peers {
 		if peer.id == excludePeerID {
 			continue
 		}
 		s.sendToPeer(peer, msg)
+		_ = data
 	}
 }
 
-// sendToPeer sends a message to a specific peer
 func (s *SFU) sendToPeer(peer *Peer, msg SignalMessage) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return
 	}
-
 	peer.mu.RLock()
 	wsConn := peer.wsConn
 	peer.mu.RUnlock()
-
 	if wsConn == nil {
 		return
 	}
-
 	wsConn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	if err := wsConn.WriteMessage(websocket.TextMessage, data); err != nil {
-		log.Printf("[SFU] Failed to send to peer %s: %v", peer.id, err)
-	}
+	wsConn.WriteMessage(websocket.TextMessage, data)
 }
 
-// GetRoomStats returns statistics about a room
-func (s *SFU) GetRoomStats(roomID string) map[string]interface{} {
-	s.mu.RLock()
-	room, exists := s.rooms[roomID]
-	s.mu.RUnlock()
-
-	if !exists {
-		return nil
-	}
-
-	room.mu.RLock()
-	defer room.mu.RUnlock()
-
-	peers := make([]map[string]interface{}, 0, len(room.peers))
-	for _, peer := range room.peers {
-		peers = append(peers, map[string]interface{}{
-			"id":   peer.id,
-			"name": peer.name,
-		})
-	}
-
-	return map[string]interface{}{
-		"roomId":    roomID,
-		"peerCount": len(room.peers),
-		"peers":     peers,
-	}
-}
-
-// mustMarshal marshals to JSON or panics
 func mustMarshal(v interface{}) json.RawMessage {
 	data, err := json.Marshal(v)
 	if err != nil {
