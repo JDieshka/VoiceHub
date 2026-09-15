@@ -423,8 +423,9 @@ class SFUClient {
 }
 
 // Singleton instance
+const sfuUrl = (import.meta as any).env?.VITE_SFU_URL || 'ws://31.77.158.177:8080/sfu';
 export const sfuClient = new SFUClient({
-  serverUrl: `ws://${window.location.hostname}:8080/sfu`,
+  serverUrl: sfuUrl,
 });
 
 export default sfuClient;

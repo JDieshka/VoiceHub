@@ -4,7 +4,7 @@
 
 import { User } from '../types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || `http://${window.location.hostname}:8080`;
+const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://31.77.158.177:8080';
 
 export interface AuthResponse {
   access_token: string;

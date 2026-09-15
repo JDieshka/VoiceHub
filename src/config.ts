@@ -12,10 +12,10 @@ export const config = {
   // API ENDPOINTS
   // ============================================
   
-  // Локальная разработка
-  apiUrl: (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080',
-  wsUrl: (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8080/ws',
-  sfuUrl: (import.meta as any).env?.VITE_SFU_URL || 'ws://localhost:8080/sfu',
+  // Сервер на IP 31.77.158.177
+  apiUrl: (import.meta as any).env?.VITE_API_URL || 'http://31.77.158.177:8080',
+  wsUrl: (import.meta as any).env?.VITE_WS_URL || 'ws://31.77.158.177:8080/ws',
+  sfuUrl: (import.meta as any).env?.VITE_SFU_URL || 'ws://31.77.158.177:8080/sfu',
   
   // ============================================
   // WEBRTC ICE SERVERS

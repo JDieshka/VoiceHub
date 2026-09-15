@@ -54,10 +54,9 @@ class WebSocketService {
     this.userName = localStorage.getItem('voicehub-userName') || 'Вы';
     this.userAvatar = localStorage.getItem('voicehub-userAvatar') || '🎮';
 
-    // Determine server URL
-    const hostname = window.location.hostname;
-    const wsPort = '8080';
-    this.url = `ws://${hostname}:${wsPort}/ws?userId=${this.userId}&userName=${encodeURIComponent(this.userName)}&userAvatar=${encodeURIComponent(this.userAvatar)}`;
+    // Determine server URL from config
+    const wsUrl = (import.meta as any).env?.VITE_WS_URL || 'ws://31.77.158.177:8080/ws';
+    this.url = `${wsUrl}?userId=${this.userId}&userName=${encodeURIComponent(this.userName)}&userAvatar=${encodeURIComponent(this.userAvatar)}`;
   }
 
   connect(): Promise<boolean> {
