@@ -81,18 +81,14 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke;
+/* Smooth transitions - only for interactive elements */
+button, a, input, select, textarea {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
 
-/* Override transition for specific elements */
-.transition-all {
-  transition-property: all !important;
-}
-
-.transition-colors {
-  transition-property: background-color, border-color, color, fill, stroke !important;
+/* Prevent transition conflicts */
+.transition-none {
+  transition: none !important;
 }

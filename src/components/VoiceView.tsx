@@ -181,19 +181,20 @@ const VoiceView: React.FC<VoiceViewProps> = ({
       {/* Content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Main area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Video/Stream area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {(screenStream || remoteStreams.size > 0) ? (
               <div className="flex-1 relative bg-black flex items-center justify-center p-4 overflow-auto">
-                <div className="grid gap-2 w-full h-full" style={{
-                  gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(1 + remoteStreams.size)), 3)}, 1fr)`,
+                <div className="grid gap-3 w-full h-full max-w-6xl mx-auto" style={{
+                  gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(1 + remoteStreams.size)), 3)}, minmax(0, 1fr))`,
+                  gridAutoRows: 'minmax(200px, 1fr)',
                 }}>
                   {screenStream && (
-                    <div className="relative bg-[#1e1f22] rounded-lg overflow-hidden flex items-center justify-center min-h-[200px]">
-                      <video ref={localVideoRef} autoPlay playsInline muted className="max-w-full max-h-full" />
-                      <div className="absolute top-2 left-2 bg-[#1e1f22]/90 px-2 py-1 rounded flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-[#ed4245] mr-1.5 animate-pulse"></div>
+                    <div className="relative bg-[#1e1f22] rounded-lg overflow-hidden flex items-center justify-center">
+                      <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+                      <div className="absolute top-2 left-2 bg-[#1e1f22]/90 px-2 py-1 rounded flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-[#ed4245] animate-pulse"></div>
                         <span className="text-xs text-white">Ваш экран</span>
                       </div>
                     </div>
@@ -202,13 +203,13 @@ const VoiceView: React.FC<VoiceViewProps> = ({
                     const hasVideo = stream.getVideoTracks().length > 0;
                     const user = channel.users.find(u => u.id === userId) || { name: 'User', avatar: '👤' };
                     return (
-                      <div key={userId} className="relative bg-[#1e1f22] rounded-lg overflow-hidden flex items-center justify-center min-h-[200px]">
+                      <div key={userId} className="relative bg-[#1e1f22] rounded-lg overflow-hidden flex items-center justify-center">
                         {hasVideo ? (
-                          <video ref={(el) => { if (el) remoteVideoRefs.current.set(userId, el); }} autoPlay playsInline className="max-w-full max-h-full" />
+                          <video ref={(el) => { if (el) remoteVideoRefs.current.set(userId, el); }} autoPlay playsInline className="w-full h-full object-contain" />
                         ) : (
-                          <div className="flex flex-col items-center">
+                          <div className="flex flex-col items-center justify-center p-4">
                             <div className="w-16 h-16 rounded-full bg-[#5865f2] flex items-center justify-center text-2xl">{user.avatar}</div>
-                            <span className="text-white text-sm mt-2">{user.name}</span>
+                            <span className="text-white text-sm mt-3">{user.name}</span>
                           </div>
                         )}
                         <div className="absolute top-2 left-2 bg-[#1e1f22]/90 px-2 py-1 rounded">
@@ -245,13 +246,13 @@ const VoiceView: React.FC<VoiceViewProps> = ({
           </div>
 
           {/* Bottom panel with audio settings */}
-          <div className="bg-[#232428] border-t border-[#1f2023] p-4">
-            <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
+          <div className="flex-shrink-0 bg-[#232428] border-t border-[#1f2023] p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
               {/* Voice Activity */}
               <div className="bg-[#2b2d31] rounded-lg p-3">
                 <div className="flex items-center gap-3">
                   <VoiceIndicator stats={audioStats} size="sm" />
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="text-xs text-[#949ba4] mb-1">Уровень голоса</div>
                     <div className="w-full h-2 bg-[#1e1f22] rounded-full overflow-hidden">
                       <div 
@@ -286,7 +287,7 @@ const VoiceView: React.FC<VoiceViewProps> = ({
         </div>
 
         {/* Right sidebar */}
-        <div className="w-64 bg-[#2b2d31] border-l border-[#1f2023] flex flex-col overflow-y-auto">
+        <div className="w-60 flex-shrink-0 bg-[#2b2d31] border-l border-[#1f2023] flex flex-col overflow-y-auto">
           {/* Participants */}
           <div className="p-4 border-b border-[#1f2023]">
             <h4 className="text-xs font-semibold text-[#949ba4] uppercase tracking-wide">
@@ -370,7 +371,7 @@ const VoiceView: React.FC<VoiceViewProps> = ({
       </div>
 
       {/* Voice controls */}
-      <div className="h-16 bg-[#232428] border-t border-[#1f2023] flex items-center justify-center gap-3 px-4">
+      <div className="flex-shrink-0 h-16 bg-[#232428] border-t border-[#1f2023] flex items-center justify-center gap-3 px-4">
         <button
           onClick={onToggleMute}
           className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${

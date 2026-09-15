@@ -304,10 +304,10 @@ function App() {
       />
 
       {viewMode === 'welcome' && (
-        <div className="flex-1 flex flex-col bg-[#313338]">
+        <div className="flex-1 flex flex-col bg-[#313338] min-w-0">
           <div className="h-12 px-4 flex items-center border-b border-[#1f2023] shadow-sm">
-            <h3 className="font-semibold text-white">{activeServer.name}</h3>
-            <div className="ml-auto flex items-center gap-4">
+            <h3 className="font-semibold text-white truncate">{activeServer.name}</h3>
+            <div className="ml-auto flex items-center gap-4 flex-shrink-0">
               <ConnectionModeSelector
                 mode={connectionMode}
                 onModeChange={handleModeChange}
