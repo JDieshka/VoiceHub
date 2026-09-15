@@ -5,9 +5,13 @@
  * Run: node scripts/create-placeholder-icons.js
  */
 
-const fs = require('fs');
-const path = require('path');
-const zlib = require('zlib');
+import fs from 'fs';
+import path from 'path';
+import zlib from 'zlib';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ICONS_DIR = path.join(__dirname, '..', 'src-tauri', 'icons');
 
