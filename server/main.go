@@ -1,29 +1,18 @@
 package main
 
 import (
-	"encoding/json"
-	"flag"
 	"log"
 	"net/http"
-	"os"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
-	"voicehub-server/internal/sfu"
+	"voicehub-server/internal/auth"
+	"voicehub-server/internal/config"
+	"voicehub-server/internal/database"
+	"voicehub-server/internal/handlers"
 	"voicehub-server/internal/signaling"
+	"voicehub-server/internal/sfu"
 	"voicehub-server/internal/ws"
-)
-
-const (
-	defaultPort = "8080"
-)
-
-var (
-	mode     = flag.String("mode", "hybrid", "Server mode: signaling, sfu, or hybrid")
-	port     = flag.String("port", defaultPort, "Server port")
-	certFile = flag.String("cert", "", "TLS certificate file")
-	keyFile  = flag.String("key", "", "TLS key file")
 )
 
 var upgrader = websocket.Upgrader{
@@ -35,94 +24,124 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	flag.Parse()
+	// Load configuration
+	cfg := config.Load()
 
-	log.Printf("🚀 VoiceHub Server starting in %s mode on port %s", *mode, *port)
+	log.Printf("🚀 VoiceHub Server starting in %s mode on port %s", cfg.Mode, cfg.Port)
 
-	mux := http.NewServeMux()
-
-	switch *mode {
-	case "signaling":
-		setupSignalingServer(mux)
-	case "sfu":
-		setupSFUServer(mux)
-	case "hybrid":
-		setupHybridServer(mux)
-	default:
-		log.Fatalf("Unknown mode: %s", *mode)
+	// Initialize database
+	db, err := database.New(cfg)
+	if err != nil {
+		log.Printf("⚠️  Database connection failed: %v", err)
+		log.Printf("⚠️  Running without database (auth disabled)")
+	} else {
+		defer db.Close()
+		
+		// Run migrations
+		if err := db.RunMigrations(); err != nil {
+			log.Printf("⚠️  Database migrations failed: %v", err)
+		} else {
+			log.Printf("✅ Database connected and migrated")
+		}
 	}
 
-	// Health and info endpoints
+	// Initialize repositories
+	var userRepo *database.UserRepository
+	var tokenRepo *database.RefreshTokenRepository
+	var serverRepo *database.ServerRepository
+	var channelRepo *database.ChannelRepository
+	var messageRepo *database.MessageRepository
+
+	if db != nil {
+		userRepo = database.NewUserRepository(db)
+		tokenRepo = database.NewRefreshTokenRepository(db)
+		serverRepo = database.NewServerRepository(db)
+		channelRepo = database.NewChannelRepository(db)
+		messageRepo = database.NewMessageRepository(db)
+	}
+
+	// Initialize JWT manager
+	jwtManager := auth.NewJWTManager(cfg)
+
+	// Initialize handlers
+	var authHandler *handlers.AuthHandler
+	var serverHandler *handlers.ServerHandler
+
+	if db != nil {
+		authHandler = handlers.NewAuthHandler(userRepo, tokenRepo, jwtManager, cfg.RefreshExpiration)
+		serverHandler = handlers.NewServerHandler(serverRepo, channelRepo, messageRepo, userRepo)
+	}
+
+	// Initialize WebSocket hub
+	hub := ws.NewHub()
+	go hub.Run()
+
+	// Initialize SFU
+	sfuServer, err := sfu.NewSFU(sfu.SFUConfig{
+		ICEServers: []webrtc.ICEServer{
+			{URLs: []string{"stun:stun.l.google.com:19302"}},
+		},
+	})
+	if err != nil {
+		log.Printf("⚠️  SFU initialization failed: %v", err)
+	}
+
+	// Setup HTTP routes
+	mux := http.NewServeMux()
+
+	// Public routes (no auth required)
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/", infoHandler)
 
-	// Apply CORS middleware
-	handler := signaling.CORSMiddleware(mux)
+	// Auth routes
+	if authHandler != nil {
+		mux.HandleFunc("/api/auth/register", authHandler.Register)
+		mux.HandleFunc("/api/auth/login", authHandler.Login)
+		mux.HandleFunc("/api/auth/refresh", authHandler.Refresh)
+	}
 
-	addr := ":" + *port
-	if *certFile != "" && *keyFile != "" {
-		log.Printf("🔒 Starting HTTPS server on %s", addr)
-		if err := http.ListenAndServeTLS(addr, *certFile, *keyFile, handler); err != nil {
-			log.Fatalf("Server failed: %v", err)
-		}
-	} else {
-		log.Printf("📡 Starting HTTP server on %s", addr)
-		log.Printf("   WebSocket: ws://localhost:%s/ws", *port)
-		log.Printf("   SFU:       ws://localhost:%s/sfu", *port)
-		log.Printf("   Health:    http://localhost:%s/health", *port)
+	// Protected routes (auth required)
+	if authHandler != nil && serverHandler != nil {
+		authMiddleware := auth.Middleware(jwtManager)
 		
-		if err := http.ListenAndServe(addr, handler); err != nil {
-			log.Fatalf("Server failed: %v", err)
-		}
+		// Wrap protected handlers with middleware
+		mux.Handle("/api/auth/logout", authMiddleware(http.HandlerFunc(authHandler.Logout)))
+		mux.Handle("/api/auth/me", authMiddleware(http.HandlerFunc(authHandler.Me)))
+		
+		mux.Handle("/api/servers", authMiddleware(http.HandlerFunc(serverHandler.CreateServer)))
+		mux.Handle("/api/servers/list", authMiddleware(http.HandlerFunc(serverHandler.GetUserServers)))
+		mux.Handle("/api/servers/get", authMiddleware(http.HandlerFunc(serverHandler.GetServer)))
+		mux.Handle("/api/servers/channels", authMiddleware(http.HandlerFunc(serverHandler.GetServerChannels)))
+		mux.Handle("/api/channels/messages", authMiddleware(http.HandlerFunc(serverHandler.GetChannelMessages)))
+		mux.Handle("/api/messages/send", authMiddleware(http.HandlerFunc(serverHandler.SendMessage)))
 	}
-}
 
-func setupSignalingServer(mux *http.ServeMux) {
-	// P2P signaling mode (mesh topology)
-	hub := ws.NewHub()
-	go hub.Run()
-
+	// WebSocket routes (can work with or without auth)
 	mux.HandleFunc("/ws", signaling.Handler(hub))
-	log.Printf("📡 Signaling server ready (P2P mesh)")
-}
-
-func setupSFUServer(mux *http.ServeMux) {
-	// SFU mode
-	sfuServer, err := sfu.NewSFU(sfu.SFUConfig{
-		ICEServers: []webrtc.ICEServer{
-			{URLs: []string{"stun:stun.l.google.com:19302"}},
-		},
-	})
-	if err != nil {
-		log.Fatalf("Failed to create SFU: %v", err)
+	if sfuServer != nil {
+		mux.HandleFunc("/sfu", func(w http.ResponseWriter, r *http.Request) {
+			handleSFUConnection(sfuServer, w, r)
+		})
 	}
 
-	mux.HandleFunc("/sfu", func(w http.ResponseWriter, r *http.Request) {
-		handleSFUConnection(sfuServer, w, r)
-	})
-	log.Printf("🎥 SFU server ready")
-}
+	// Apply CORS middleware
+	handler := corsMiddleware(mux)
 
-func setupHybridServer(mux *http.ServeMux) {
-	// Both P2P signaling and SFU
-	hub := ws.NewHub()
-	go hub.Run()
-
-	sfuServer, err := sfu.NewSFU(sfu.SFUConfig{
-		ICEServers: []webrtc.ICEServer{
-			{URLs: []string{"stun:stun.l.google.com:19302"}},
-		},
-	})
-	if err != nil {
-		log.Fatalf("Failed to create SFU: %v", err)
+	// Start server
+	addr := ":" + cfg.Port
+	log.Printf("📡 Starting HTTP server on %s", addr)
+	log.Printf("   Endpoints:")
+	log.Printf("     Health:    http://localhost:%s/health", cfg.Port)
+	log.Printf("     Auth:      http://localhost:%s/api/auth/*", cfg.Port)
+	log.Printf("     Servers:   http://localhost:%s/api/servers/*", cfg.Port)
+	log.Printf("     WebSocket: ws://localhost:%s/ws", cfg.Port)
+	if sfuServer != nil {
+		log.Printf("     SFU:       ws://localhost:%s/sfu", cfg.Port)
 	}
 
-	mux.HandleFunc("/ws", signaling.Handler(hub))
-	mux.HandleFunc("/sfu", func(w http.ResponseWriter, r *http.Request) {
-		handleSFUConnection(sfuServer, w, r)
-	})
-
-	log.Printf("🔀 Hybrid server ready (P2P + SFU)")
+	if err := http.ListenAndServe(addr, handler); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 }
 
 func handleSFUConnection(sfuServer *sfu.SFU, w http.ResponseWriter, r *http.Request) {
@@ -133,9 +152,6 @@ func handleSFUConnection(sfuServer *sfu.SFU, w http.ResponseWriter, r *http.Requ
 	}
 
 	peerID := r.URL.Query().Get("peerId")
-	if peerID == "" {
-		peerID = uuid.New().String()
-	}
 	peerName := r.URL.Query().Get("peerName")
 	if peerName == "" {
 		peerName = "User-" + peerID[:6]
@@ -150,24 +166,12 @@ func handleSFUConnection(sfuServer *sfu.SFU, w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// Health check handler
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
-	hostname, _ := os.Hostname()
-	response := map[string]interface{}{
-		"status":   "ok",
-		"service":  "voicehub-server",
-		"mode":     *mode,
-		"hostname": hostname,
-		"version":  "1.1.0",
-	}
-	
-	json.NewEncoder(w).Encode(response)
+	w.Write([]byte(`{"status":"ok","service":"voicehub-server","version":"2.0.0"}`))
 }
 
-// Info handler
 func infoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -176,22 +180,31 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	
-	info := map[string]interface{}{
+	w.Write([]byte(`{
 		"service": "VoiceHub Server",
-		"version": "1.1.0",
-		"mode":    *mode,
-		"endpoints": map[string]string{
-			"signaling": "/ws?userId=<id>&userName=<name>&userAvatar=<emoji>",
-			"sfu":       "/sfu?peerId=<id>&peerName=<name>",
-			"health":    "/health",
-		},
-		"modes": map[string]string{
-			"signaling": "P2P mesh - clients connect directly to each other",
-			"sfu":       "SFU - server forwards media between clients",
-			"hybrid":    "Both P2P and SFU endpoints available",
-		},
-	}
-	
-	json.NewEncoder(w).Encode(info)
+		"version": "2.0.0",
+		"features": ["authentication", "servers", "voice_channels", "text_channels", "sfu", "p2p"],
+		"endpoints": {
+			"auth": "/api/auth/*",
+			"servers": "/api/servers/*",
+			"websocket": "/ws",
+			"sfu": "/sfu"
+		}
+	}`))
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

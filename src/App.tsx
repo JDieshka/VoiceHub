@@ -6,14 +6,17 @@ import ChannelList from './components/ChannelList';
 import Chat from './components/Chat';
 import VoiceView from './components/VoiceView';
 import MembersList from './components/MembersList';
+import AuthPage from './components/AuthPage';
 import { wsService } from './services/websocket';
 import { webrtcService } from './services/webrtc';
 import { sfuClient } from './services/sfu';
+import { authService } from './services/auth';
 import ConnectionModeSelector, { ConnectionMode } from './components/ConnectionModeSelector';
 
 type ViewMode = 'text' | 'voice' | 'welcome';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
   const [activeServerId, setActiveServerId] = useState(servers[0].id);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('welcome');
@@ -29,6 +32,11 @@ function App() {
   });
 
   const activeServer = serverData.find(s => s.id === activeServerId) || serverData[0];
+
+  // Show auth page if not authenticated
+  if (!isAuthenticated) {
+    return <AuthPage onAuthenticated={() => setIsAuthenticated(true)} />;
+  }
 
   // Save connection mode preference
   useEffect(() => {
