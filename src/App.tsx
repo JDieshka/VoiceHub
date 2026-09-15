@@ -238,6 +238,37 @@ function App() {
     setIsDeafened(prev => !prev);
   }, []);
 
+  const handleCreateChannel = useCallback((name: string, type: 'text' | 'voice') => {
+    const newChannelId = `ch-${Date.now()}`;
+    
+    setServerData(prev => prev.map(s => {
+      if (s.id === activeServerId) {
+        if (type === 'text') {
+          return {
+            ...s,
+            textChannels: [...s.textChannels, {
+              id: newChannelId,
+              name: name.toLowerCase().replace(/\s+/g, '-'),
+              messages: [],
+            }]
+          };
+        } else {
+          return {
+            ...s,
+            voiceChannels: [...s.voiceChannels, {
+              id: newChannelId,
+              name,
+              type: 'voice',
+              users: [],
+              bitrate: 64000,
+            }]
+          };
+        }
+      }
+      return s;
+    }));
+  }, [activeServerId]);
+
   const handleStartStream = useCallback(async () => {
     try {
       // Start screen share in active service
@@ -298,6 +329,7 @@ function App() {
         onToggleMute={handleToggleMute}
         onToggleDeafen={handleToggleDeafen}
         onStartStream={handleStartStream}
+        onCreateChannel={handleCreateChannel}
         isMuted={isMuted}
         isDeafened={isDeafened}
         isStreaming={isStreaming}
