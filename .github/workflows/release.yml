@@ -27,7 +27,7 @@ jobs:
               repo: context.repo.repo,
               tag_name: context.ref.replace('refs/tags/', ''),
               name: `VoiceHub ${context.ref.replace('refs/tags/', '')}`,
-              body: `## VoiceHub Desktop Release\n\nАвтоматическая сборка ${context.ref.replace('refs/tags/', '')}\n\n### Установка\n- **Windows**: Скачайте `.msi` или `.exe` файл\n- **macOS**: Скачайте `.dmg` файл\n- **Linux**: Скачайте `.AppImage` или `.deb` файл\n\n### Системные требования\n- Windows 10/11 (64-bit)\n- macOS 10.15+\n- Linux (Ubuntu 20.04+, Debian 10+, Fedora 33+)\n\n### Подключение\nПриложение автоматически подключается к серверу VoiceHub.`,
+              body: `## VoiceHub Desktop Release\n\nАвтоматическая сборка ${context.ref.replace('refs/tags/', '')}\n\n### Установка\n- **Windows**: Скачайте .msi или .exe файл\n- **Linux**: Скачайте .AppImage или .deb файл\n\n### Системные требования\n- Windows 10/11 (64-bit)\n- Linux (Ubuntu 20.04+, Debian 10+, Fedora 33+)\n\n### Подключение\nПриложение автоматически подключается к серверу VoiceHub.`,
               draft: false,
               prerelease: false
             });
@@ -104,63 +104,6 @@ jobs:
             
             for (const file of files) {
               const filePath = path.join(nsisPath, file);
-              const asset = await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: '${{ needs.create-release.outputs.release_id }}',
-                name: file,
-                data: fs.readFileSync(filePath)
-              });
-            }
-
-  build-macos:
-    name: Build macOS
-    needs: create-release
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin,aarch64-apple-darwin
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^1.6"
-
-      - name: Build Tauri app
-        run: cargo tauri build
-
-      - name: Upload DMG
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const dmgPath = path.join('src-tauri', 'target', 'release', 'bundle', 'dmg');
-            const files = fs.readdirSync(dmgPath).filter(f => f.endsWith('.dmg'));
-            
-            for (const file of files) {
-              const filePath = path.join(dmgPath, file);
               const asset = await github.rest.repos.uploadReleaseAsset({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
