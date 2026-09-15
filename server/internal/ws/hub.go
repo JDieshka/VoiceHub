@@ -183,15 +183,15 @@ func (h *Hub) removeFromChannelLocked(channelID string, clientID string) {
 }
 
 // GetChannelUsers returns all users in a channel
-func (h *Hub) GetChannelUsers(channelID string) []models.User {
+func (h *Hub) GetChannelUsers(channelID string) []models.WSUser {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	var users []models.User
+	var users []models.WSUser
 	if channelClients, ok := h.channels[channelID]; ok {
 		for clientID := range channelClients {
 			if client, ok := h.clients[clientID]; ok {
-				users = append(users, models.User{
+				users = append(users, models.WSUser{
 					ID:     client.ID,
 					Name:   client.Name,
 					Avatar: client.Avatar,
@@ -418,7 +418,7 @@ func (h *Hub) handleJoin(client *Client, msg models.SignalMessage) {
 		From:      client.ID,
 		Timestamp: time.Now(),
 	}
-	userData, _ := json.Marshal(models.User{
+	userData, _ := json.Marshal(models.WSUser{
 		ID:     client.ID,
 		Name:   client.Name,
 		Avatar: client.Avatar,

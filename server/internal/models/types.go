@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// User represents a connected user
-type User struct {
+// WSUser represents a connected user in WebSocket
+type WSUser struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Avatar   string `json:"avatar"`
@@ -17,9 +17,9 @@ type User struct {
 
 // ChannelState represents the current state of a voice channel
 type ChannelState struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Users []User `json:"users"`
+	ID    string   `json:"id"`
+	Name  string   `json:"name"`
+	Users []WSUser `json:"users"`
 }
 
 // SignalMessage is the envelope for all WebSocket messages
@@ -55,7 +55,7 @@ const (
 
 // JoinPayload is sent when a user joins a voice channel
 type JoinPayload struct {
-	User User `json:"user"`
+	User WSUser `json:"user"`
 }
 
 // LeavePayload is sent when a user leaves
