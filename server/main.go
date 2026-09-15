@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
@@ -91,7 +93,21 @@ func main() {
 
 	// Public routes (no auth required)
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/", infoHandler)
+	
+	// Frontend static files (if dist/ exists)
+	distPath := filepath.Join("..", "dist")
+	if _, err := os.Stat(distPath); err == nil {
+		log.Printf("📁 Serving frontend from %s", distPath)
+		fs := http.FileServer(http.Dir(distPath))
+		mux.Handle("/assets/", fs)
+		mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, filepath.Join(distPath, "favicon.ico"))
+		})
+	} else {
+		log.Printf("⚠️  Frontend dist/ not found, using info handler")
+	}
+	
+	mux.HandleFunc("/", rootHandler)
 
 	// Auth routes
 	if authHandler != nil {
@@ -172,19 +188,34 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"ok","service":"voicehub-server","version":"2.0.0"}`))
 }
 
-func infoHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	// Если это API запрос - возвращаем JSON
+	if len(r.URL.Path) > 1 && (r.URL.Path[:4] == "/api" || r.URL.Path[:3] == "/ws" || r.URL.Path[:4] == "/sfu") {
 		http.NotFound(w, r)
 		return
 	}
 	
+	// Пытаемся отдать index.html из dist/
+	distPath := filepath.Join("..", "dist")
+	indexPath := filepath.Join(distPath, "index.html")
+	
+	if _, err := os.Stat(indexPath); err == nil {
+		// Отдаём index.html для SPA
+		http.ServeFile(w, r, indexPath)
+		return
+	}
+	
+	// Если dist/ нет - возвращаем JSON информацию
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{
 		"service": "VoiceHub Server",
 		"version": "2.0.0",
-		"features": ["authentication", "servers", "voice_channels", "text_channels", "sfu", "p2p"],
+		"status": "running",
+		"frontend": "not built",
+		"message": "Frontend not found. Run 'npm run build' in project root.",
 		"endpoints": {
+			"health": "/health",
 			"auth": "/api/auth/*",
 			"servers": "/api/servers/*",
 			"websocket": "/ws",
