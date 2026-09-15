@@ -4,7 +4,7 @@ mod commands;
 mod tray;
 mod audio;
 
-use tauri::{Manager, CustomMenuItem, SystemTray, SystemTrayMenu, SystemTrayEvent, SystemTrayMenuItem, GlobalShortcutManager};
+use tauri::{Manager, CustomMenuItem, SystemTray, SystemTrayMenu, SystemTrayEvent, SystemTrayMenuItem};
 use std::sync::{Arc, Mutex};
 
 /// Application state shared across commands
