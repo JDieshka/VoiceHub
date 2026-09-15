@@ -54,40 +54,70 @@ class AuthService {
    * Register a new user
    */
   async register(credentials: RegisterCredentials): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
-    });
+    try {
+      console.log('[Auth] Attempting to register user:', credentials.email);
+      console.log('[Auth] API URL:', `${API_BASE}/api/auth/register`);
+      
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Registration failed');
+      console.log('[Auth] Response status:', response.status);
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('[Auth] Registration failed:', error);
+        throw new Error(error || 'Registration failed');
+      }
+
+      const data: AuthResponse = await response.json();
+      console.log('[Auth] Registration successful');
+      this.setTokens(data.access_token, data.refresh_token, data.user);
+      return data;
+    } catch (error) {
+      console.error('[Auth] Registration error:', error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`Не удалось подключиться к серверу. Проверьте, что сервер запущен на ${API_BASE}`);
+      }
+      throw error;
     }
-
-    const data: AuthResponse = await response.json();
-    this.setTokens(data.access_token, data.refresh_token, data.user);
-    return data;
   }
 
   /**
    * Login with email and password
    */
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
-    });
+    try {
+      console.log('[Auth] Attempting to login:', credentials.email);
+      console.log('[Auth] API URL:', `${API_BASE}/api/auth/login`);
+      
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Login failed');
+      console.log('[Auth] Response status:', response.status);
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('[Auth] Login failed:', error);
+        throw new Error(error || 'Login failed');
+      }
+
+      const data: AuthResponse = await response.json();
+      console.log('[Auth] Login successful');
+      this.setTokens(data.access_token, data.refresh_token, data.user);
+      return data;
+    } catch (error) {
+      console.error('[Auth] Login error:', error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`Не удалось подключиться к серверу. Проверьте, что сервер запущен на ${API_BASE}`);
+      }
+      throw error;
     }
-
-    const data: AuthResponse = await response.json();
-    this.setTokens(data.access_token, data.refresh_token, data.user);
-    return data;
   }
 
   /**
@@ -98,21 +128,53 @@ class AuthService {
       throw new Error('No refresh token available');
     }
 
-    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: this.refreshToken }),
-    });
+    try {
+      console.log('[Auth] Attempting to refresh token');
+      
+      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: this.refreshToken }),
+      });
 
-    if (!response.ok) {
-      // Refresh token is invalid, logout
-      this.logout();
-      throw new Error('Token refresh failed');
+      if (!response.ok) {
+        console.error('[Auth] Token refresh failed:', response.status);
+        // Refresh token is invalid, logout
+        this.logout();
+        throw new Error('Token refresh failed');
+      }
+
+      const data: AuthResponse = await response.json();
+      console.log('[Auth] Token refresh successful');
+      this.setTokens(data.access_token, data.refresh_token, data.user);
+      return data;
+    } catch (error) {
+      console.error('[Auth] Refresh error:', error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`Не удалось подключиться к серверу. Проверьте, что сервер запущен на ${API_BASE}`);
+      }
+      throw error;
     }
+  }
 
-    const data: AuthResponse = await response.json();
-    this.setTokens(data.access_token, data.refresh_token, data.user);
-    return data;
+  /**
+   * Check if server is available
+   */
+  async checkServerAvailability(): Promise<boolean> {
+    try {
+      console.log('[Auth] Checking server availability...');
+      const response = await fetch(`${API_BASE}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000), // 5 seconds timeout
+      });
+      
+      const isAvailable = response.ok;
+      console.log('[Auth] Server availability:', isAvailable);
+      return isAvailable;
+    } catch (error) {
+      console.error('[Auth] Server not available:', error);
+      return false;
+    }
   }
 
   /**

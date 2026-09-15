@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { authService } from '../services/auth';
 
 interface AuthPageProps {
@@ -13,8 +13,18 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
   const [avatar, setAvatar] = useState('🎮');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverAvailable, setServerAvailable] = useState<boolean | null>(null);
 
   const avatars = ['🎮', '🦊', '🌸', '🎸', '🎨', '🚀', '🌟', '🎯', '🎵', '💻'];
+
+  // Проверка доступности сервера при загрузке
+  useEffect(() => {
+    const checkServer = async () => {
+      const available = await authService.checkServerAvailability();
+      setServerAvailable(available);
+    };
+    checkServer();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +32,14 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
     setLoading(true);
 
     try {
+      // Проверяем доступность сервера перед отправкой
+      const available = await authService.checkServerAvailability();
+      if (!available) {
+        setError('Сервер недоступен. Проверьте подключение к интернету или обратитесь к администратору.');
+        setLoading(false);
+        return;
+      }
+
       if (isLogin) {
         await authService.login({ email, password });
       } else {
@@ -29,7 +47,20 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
       }
       onAuthenticated();
     } catch (err: any) {
-      setError(err.message || 'An error occurred');
+      console.error('[AuthPage] Error:', err);
+      
+      // Более понятные сообщения об ошибках
+      if (err.message.includes('Не удалось подключиться')) {
+        setError(err.message);
+      } else if (err.message.includes('User already exists')) {
+        setError('Пользователь с таким email уже существует');
+      } else if (err.message.includes('Invalid credentials')) {
+        setError('Неверный email или пароль');
+      } else if (err.message.includes('fetch')) {
+        setError('Не удалось подключиться к серверу. Проверьте подключение к интернету.');
+      } else {
+        setError(err.message || 'Произошла ошибка. Попробуйте еще раз.');
+      }
     } finally {
       setLoading(false);
     }
@@ -41,8 +72,18 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">VoiceHub</h1>
           <p className="text-[#b5bac1]">
-            {isLogin ? 'Welcome back!' : 'Create an account'}
+            {isLogin ? 'Добро пожаловать!' : 'Создать аккаунт'}
           </p>
+          {serverAvailable !== null && (
+            <div className={`mt-2 text-xs flex items-center justify-center gap-1 ${
+              serverAvailable ? 'text-[#23a559]' : 'text-[#ed4245]'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                serverAvailable ? 'bg-[#23a559]' : 'bg-[#ed4245]'
+              }`}></div>
+              {serverAvailable ? 'Сервер доступен' : 'Сервер недоступен'}
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -50,7 +91,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
             <>
               <div>
                 <label className="block text-xs font-bold text-[#b5bac1] uppercase mb-2">
-                  Username
+                  Имя пользователя
                 </label>
                 <input
                   type="text"
@@ -60,13 +101,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
                   minLength={3}
                   maxLength={50}
                   className="w-full bg-[#1e1f22] text-[#dbdee1] rounded px-3 py-2.5 border border-[#1e1f22] focus:border-[#5865f2] outline-none transition-colors"
-                  placeholder="Enter your username"
+                  placeholder="Введите имя пользователя"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-[#b5bac1] uppercase mb-2">
-                  Avatar
+                  Аватар
                 </label>
                 <div className="flex gap-2 flex-wrap">
                   {avatars.map((a) => (
@@ -98,13 +139,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full bg-[#1e1f22] text-[#dbdee1] rounded px-3 py-2.5 border border-[#1e1f22] focus:border-[#5865f2] outline-none transition-colors"
-              placeholder="Enter your email"
+              placeholder="Введите email"
             />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-[#b5bac1] uppercase mb-2">
-              Password
+              Пароль
             </label>
             <input
               type="password"
@@ -113,7 +154,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
               required
               minLength={6}
               className="w-full bg-[#1e1f22] text-[#dbdee1] rounded px-3 py-2.5 border border-[#1e1f22] focus:border-[#5865f2] outline-none transition-colors"
-              placeholder="Enter your password"
+              placeholder="Введите пароль"
             />
           </div>
 
@@ -125,16 +166,16 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || serverAvailable === false}
             className="w-full bg-[#5865f2] hover:bg-[#4752c4] disabled:bg-[#4752c4] text-white rounded py-2.5 font-medium transition-colors"
           >
-            {loading ? 'Loading...' : isLogin ? 'Log In' : 'Register'}
+            {loading ? 'Загрузка...' : isLogin ? 'Войти' : 'Зарегистрироваться'}
           </button>
         </form>
 
         <div className="mt-4 text-center">
           <span className="text-[#b5bac1] text-sm">
-            {isLogin ? "Don't have an account? " : 'Already have an account? '}
+            {isLogin ? "Нет аккаунта? " : 'Уже есть аккаунт? '}
           </span>
           <button
             onClick={() => {
@@ -143,7 +184,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthenticated }) => {
             }}
             className="text-[#00a8fc] hover:underline text-sm font-medium"
           >
-            {isLogin ? 'Register' : 'Log In'}
+            {isLogin ? 'Зарегистрироваться' : 'Войти'}
           </button>
         </div>
       </div>
