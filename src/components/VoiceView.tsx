@@ -6,6 +6,8 @@ import AudioSettings from './AudioSettings';
 import ConnectionStats from './ConnectionStats';
 import PushToTalk from './PushToTalk';
 
+import { ConnectionMode } from './ConnectionModeSelector';
+
 interface VoiceViewProps {
   channel: VoiceChannel;
   currentUser: User;
@@ -19,6 +21,7 @@ interface VoiceViewProps {
   onStopStream: () => void;
   remoteStreams?: Map<string, MediaStream>;
   isConnected?: boolean;
+  connectionMode?: ConnectionMode;
 }
 
 const VoiceView: React.FC<VoiceViewProps> = ({
@@ -34,6 +37,7 @@ const VoiceView: React.FC<VoiceViewProps> = ({
   onStopStream,
   remoteStreams = new Map(),
   isConnected = false,
+  connectionMode = 'auto',
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -168,7 +172,7 @@ const VoiceView: React.FC<VoiceViewProps> = ({
               <svg className="w-3 h-3 mr-1" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
-              WebRTC
+              {connectionMode === 'sfu' ? 'SFU' : connectionMode === 'p2p' ? 'P2P' : 'WebRTC'}
             </button>
           )}
         </div>

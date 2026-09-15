@@ -275,6 +275,20 @@ class AudioService {
   }
 
   /**
+   * Переключить mute
+   */
+  toggleMute(): boolean {
+    if (this.stream) {
+      const track = this.stream.getAudioTracks()[0];
+      if (track) {
+        track.enabled = !track.enabled;
+        return !track.enabled;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Остановить микрофон
    */
   stopMicrophone() {

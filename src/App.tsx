@@ -8,6 +8,8 @@ import VoiceView from './components/VoiceView';
 import MembersList from './components/MembersList';
 import { wsService } from './services/websocket';
 import { webrtcService } from './services/webrtc';
+import { sfuClient } from './services/sfu';
+import ConnectionModeSelector, { ConnectionMode } from './components/ConnectionModeSelector';
 
 type ViewMode = 'text' | 'voice' | 'welcome';
 
@@ -22,37 +24,68 @@ function App() {
   const [showMembers, setShowMembers] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>(() => {
+    return (localStorage.getItem('voicehub-connection-mode') as ConnectionMode) || 'auto';
+  });
 
   const activeServer = serverData.find(s => s.id === activeServerId) || serverData[0];
 
-  // Initialize WebSocket connection
+  // Save connection mode preference
   useEffect(() => {
-    const connect = async () => {
-      const connected = await wsService.connect();
-      setIsConnected(connected);
+    localStorage.setItem('voicehub-connection-mode', connectionMode);
+  }, [connectionMode]);
 
-      if (connected) {
-        console.log('[App] Connected to VoiceHub server');
-      } else {
-        console.log('[App] Running in offline/demo mode');
+  // Initialize connections based on mode
+  useEffect(() => {
+    const initializeConnections = async () => {
+      // Always connect WebSocket for signaling
+      const wsConnected = await wsService.connect();
+      
+      // Connect SFU if mode is sfu or auto
+      if (connectionMode === 'sfu' || connectionMode === 'auto') {
+        // SFU will be connected when joining a voice channel
+        console.log('[App] SFU mode available');
       }
+      
+      setIsConnected(wsConnected);
     };
 
-    connect();
+    initializeConnections();
 
-    // Setup WebRTC callbacks
-    webrtcService.setOnRemoteStream((userId, stream) => {
+    // Setup WebRTC callbacks for P2P mode
+    webrtcService.setOnRemoteStream((userId, stream, type) => {
+      if (type === 'audio') {
+        setRemoteStreams(prev => {
+          const next = new Map(prev);
+          next.set(userId, stream);
+          return next;
+        });
+      }
+    });
+
+    webrtcService.setOnRemoteStreamRemoved((userId, type) => {
+      if (type === 'audio') {
+        setRemoteStreams(prev => {
+          const next = new Map(prev);
+          next.delete(userId);
+          return next;
+        });
+      }
+    });
+
+    // Setup SFU callbacks
+    sfuClient.on('remotestream', (peerId, stream) => {
       setRemoteStreams(prev => {
         const next = new Map(prev);
-        next.set(userId, stream);
+        next.set(peerId, stream);
         return next;
       });
     });
 
-    webrtcService.setOnRemoteStreamRemoved((userId) => {
+    sfuClient.on('peerleft', (peerId) => {
       setRemoteStreams(prev => {
         const next = new Map(prev);
-        next.delete(userId);
+        next.delete(peerId);
         return next;
       });
     });
@@ -60,8 +93,9 @@ function App() {
     return () => {
       wsService.disconnect();
       webrtcService.leaveChannel();
+      sfuClient.disconnect();
     };
-  }, []);
+  }, [connectionMode]);
 
   const handleSelectServer = (id: string) => {
     setActiveServerId(id);
@@ -79,10 +113,30 @@ function App() {
       if (voiceChannel) {
         setViewMode('voice');
         
-        // Connect to server if available
-        if (isConnected) {
-          wsService.joinChannel(id, { name: currentUser.name, avatar: currentUser.avatar });
-          await webrtcService.joinChannel(id);
+        // Connect based on mode
+        if (connectionMode === 'p2p') {
+          // P2P mode: use WebSocket signaling + WebRTC mesh
+          if (isConnected) {
+            wsService.joinChannel(id, { name: currentUser.name, avatar: currentUser.avatar });
+            await webrtcService.joinChannel(id);
+          }
+        } else if (connectionMode === 'sfu') {
+          // SFU mode: connect to SFU server
+          const connected = await sfuClient.connect(id);
+          if (!connected) {
+            console.warn('[App] SFU connection failed, falling back to P2P');
+            if (isConnected) {
+              wsService.joinChannel(id, { name: currentUser.name, avatar: currentUser.avatar });
+              await webrtcService.joinChannel(id);
+            }
+          }
+        } else {
+          // Auto mode: try SFU first, fallback to P2P
+          const sfuConnected = await sfuClient.connect(id);
+          if (!sfuConnected && isConnected) {
+            wsService.joinChannel(id, { name: currentUser.name, avatar: currentUser.avatar });
+            await webrtcService.joinChannel(id);
+          }
         }
 
         // Add current user to channel
@@ -97,7 +151,6 @@ function App() {
                   }
                   return vc;
                 }
-                // Remove user from other channels
                 return { ...vc, users: vc.users.filter(u => u.id !== currentUser.id) };
               })
             };
@@ -113,7 +166,6 @@ function App() {
   const handleSendMessage = (content: string) => {
     const newMessage = generateMessage(content);
     
-    // Send to server if connected
     if (isConnected && activeChannelId) {
       wsService.sendTextMessage(activeChannelId, content);
     }
@@ -135,7 +187,11 @@ function App() {
   };
 
   const handleLeaveVoice = () => {
-    // Leave on server
+    // Leave based on active connection
+    if (sfuClient.getIsConnected()) {
+      sfuClient.disconnect();
+    }
+    
     if (isConnected && activeChannelId) {
       wsService.leaveChannel(activeChannelId);
       webrtcService.leaveChannel();
@@ -162,10 +218,10 @@ function App() {
     const newMuted = !isMuted;
     setIsMuted(newMuted);
     
-    if (isConnected) {
-      webrtcService.toggleMute();
-    }
-  }, [isMuted, isConnected]);
+    // Mute in both services (whichever is active)
+    webrtcService.toggleMute();
+    sfuClient.toggleMute();
+  }, [isMuted]);
 
   const handleToggleDeafen = useCallback(() => {
     setIsDeafened(prev => !prev);
@@ -173,7 +229,12 @@ function App() {
 
   const handleStartStream = useCallback(async () => {
     try {
-      await webrtcService.startScreenShare();
+      // Start screen share in active service
+      if (sfuClient.getIsConnected()) {
+        await sfuClient.startScreenShare();
+      } else {
+        await webrtcService.startScreenShare();
+      }
       setIsStreaming(true);
     } catch (err) {
       console.error('Failed to start screen share:', err);
@@ -181,9 +242,17 @@ function App() {
   }, []);
 
   const handleStopStream = useCallback(() => {
-    webrtcService.stopScreenShare();
+    if (sfuClient.getIsConnected()) {
+      sfuClient.stopScreenShare();
+    } else {
+      webrtcService.stopScreenShare();
+    }
     setIsStreaming(false);
   }, []);
+
+  const handleModeChange = (mode: ConnectionMode) => {
+    setConnectionMode(mode);
+  };
 
   const getActiveVoiceChannel = (): VoiceChannel | null => {
     if (viewMode !== 'voice' || !activeChannelId) return null;
@@ -200,16 +269,17 @@ function App() {
   const activeVoiceChannel = getActiveVoiceChannel();
   const activeTextChannel = getActiveTextChannel();
 
+  // Determine actual connection status
+  const isVoiceConnected = sfuClient.getIsConnected() || (isConnected && webrtcService.getPeerCount() >= 0);
+
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#313338]">
-      {/* Server sidebar */}
       <ServerSidebar
         servers={serverData}
         activeServer={activeServerId}
         onSelectServer={handleSelectServer}
       />
 
-      {/* Channel list */}
       <ChannelList
         server={activeServer}
         activeChannel={activeChannelId}
@@ -222,47 +292,58 @@ function App() {
         isStreaming={isStreaming}
       />
 
-      {/* Main content */}
       {viewMode === 'welcome' && (
         <div className="flex-1 flex flex-col bg-[#313338]">
           <div className="h-12 px-4 flex items-center border-b border-[#1f2023] shadow-sm">
             <h3 className="font-semibold text-white">{activeServer.name}</h3>
-            <div className="ml-auto flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#23a559]' : 'bg-[#ed4245]'}`}></div>
-              <span className="text-xs text-[#949ba4]">
-                {isConnected ? 'Сервер подключен' : 'Демо-режим'}
-              </span>
+            <div className="ml-auto flex items-center gap-4">
+              <ConnectionModeSelector
+                mode={connectionMode}
+                onModeChange={handleModeChange}
+                isConnected={isConnected}
+              />
             </div>
           </div>
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-md">
+            <div className="text-center max-w-2xl">
               <div className="w-20 h-20 rounded-full bg-[#5865f2] flex items-center justify-center text-4xl mx-auto mb-6">
                 {activeServer.icon}
               </div>
               <h2 className="text-2xl font-bold text-white mb-3">Добро пожаловать в {activeServer.name}!</h2>
               <p className="text-[#949ba4] mb-6">
-                Выберите голосовой или текстовый канал из списка слева, чтобы начать общение.
+                Выберите голосовой или текстовый канал из списка слева.
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
-                  <div className="text-2xl mb-2">🎙️</div>
-                  <h4 className="text-white font-medium text-sm mb-1">Голосовые каналы</h4>
-                  <p className="text-xs text-[#949ba4]">Общайтесь голосом в реальном времени</p>
-                </div>
-                <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
-                  <div className="text-2xl mb-2">📺</div>
-                  <h4 className="text-white font-medium text-sm mb-1">Трансляции</h4>
-                  <p className="text-xs text-[#949ba4]">Делитесь экраном с друзьями</p>
-                </div>
-                <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
-                  <div className="text-2xl mb-2">💬</div>
-                  <h4 className="text-white font-medium text-sm mb-1">Текстовые каналы</h4>
-                  <p className="text-xs text-[#949ba4]">Обменивайтесь сообщениями</p>
-                </div>
+              
+              {/* Architecture info */}
+              <div className="grid grid-cols-3 gap-3 mb-6">
                 <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
                   <div className="text-2xl mb-2">🔗</div>
-                  <h4 className="text-white font-medium text-sm mb-1">WebRTC P2P</h4>
-                  <p className="text-xs text-[#949ba4]">Прямое соединение между клиентами</p>
+                  <h4 className="text-white font-medium text-sm mb-1">P2P Mesh</h4>
+                  <p className="text-xs text-[#949ba4]">Прямое соединение между клиентами. Минимальная задержка.</p>
+                </div>
+                <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
+                  <div className="text-2xl mb-2">🖥️</div>
+                  <h4 className="text-white font-medium text-sm mb-1">SFU</h4>
+                  <p className="text-xs text-[#949ba4]">Сервер пересылает медиа. Масштабируется до 100+ участников.</p>
+                </div>
+                <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
+                  <div className="text-2xl mb-2">⚡</div>
+                  <h4 className="text-white font-medium text-sm mb-1">Гибрид</h4>
+                  <p className="text-xs text-[#949ba4]">Автоматический выбор режима в зависимости от доступности.</p>
+                </div>
+              </div>
+
+              <div className="bg-[#2b2d31] rounded-lg p-4 text-left">
+                <h4 className="text-white font-medium text-sm mb-2">Текущий режим: <span className="text-[#5865f2]">{connectionMode.toUpperCase()}</span></h4>
+                <div className="text-xs text-[#949ba4] space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#23a559]' : 'bg-[#ed4245]'}`}></div>
+                    <span>WebSocket: {isConnected ? 'Подключен' : 'Отключен'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${sfuClient.getIsConnected() ? 'bg-[#23a559]' : 'bg-[#80848e]'}`}></div>
+                    <span>SFU: {sfuClient.getIsConnected() ? 'Активен' : 'Не подключен'}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -290,7 +371,8 @@ function App() {
           onStartStream={handleStartStream}
           onStopStream={handleStopStream}
           remoteStreams={remoteStreams}
-          isConnected={isConnected}
+          isConnected={isVoiceConnected}
+          connectionMode={connectionMode}
         />
       )}
     </div>
