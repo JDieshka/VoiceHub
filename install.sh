@@ -29,10 +29,45 @@ error() {
     exit 1
 }
 
-# Проверка что мы в правильной директории
-if [ ! -f "server/main.go" ]; then
-    error "Скрипт должен запускаться из корня проекта voicehub"
+# Проверка структуры проекта
+echo "🔍 Проверка структуры проекта..."
+
+# Определяем где находимся
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+if [ -f "server/main.go" ]; then
+    info "Структура проекта корректна"
+    PROJECT_ROOT="$(pwd)"
+elif [ -f "main.go" ] && [ -d "internal" ]; then
+    info "Находимся в директории server"
+    PROJECT_ROOT="$(dirname "$(pwd)")"
+elif [ -f "/opt/voicehub/server/main.go" ]; then
+    info "Проект найден в /opt/voicehub"
+    PROJECT_ROOT="/opt/voicehub"
+    cd "$PROJECT_ROOT"
+else
+    echo ""
+    echo "❌ Не найдена правильная структура проекта"
+    echo ""
+    echo "Ожидаемая структура:"
+    echo "  voicehub/"
+    echo "  ├── server/"
+    echo "  │   ├── main.go"
+    echo "  │   ├── go.mod"
+    echo "  │   └── internal/"
+    echo "  ├── src/"
+    echo "  ├── dist/"
+    echo "  └── install.sh"
+    echo ""
+    echo "Текущая директория: $(pwd)"
+    echo "Содержимое:"
+    ls -la
+    echo ""
+    error "Проверьте что файлы скопированы правильно"
 fi
+
+export PROJECT_ROOT
 
 # Шаг 1: Установка Go 1.24+
 echo ""
@@ -121,7 +156,8 @@ echo ""
 echo "📦 Шаг 3: Установка зависимостей Go"
 echo "------------------------------------"
 
-cd server
+cd "$PROJECT_ROOT/server"
+info "Рабочая директория: $(pwd)"
 
 # Очистка кэша модулей
 info "Очистка кэша модулей..."
@@ -163,7 +199,7 @@ echo ""
 echo "⚙️  Шаг 5: Настройка systemd service"
 echo "-------------------------------------"
 
-cat > /etc/systemd/system/voicehub.service << 'EOF'
+cat > /etc/systemd/system/voicehub.service << EOF
 [Unit]
 Description=VoiceHub Server
 After=network.target postgresql.service
@@ -171,14 +207,14 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/voicehub/server
+WorkingDirectory=$PROJECT_ROOT/server
 Environment="PATH=/usr/local/go/bin:/usr/bin:/bin"
 Environment="DATABASE_URL=postgres://voicehub:VoiceHub2024SecurePass@localhost:5432/voicehub?sslmode=disable"
 Environment="JWT_SECRET=VoiceHub2024SuperSecretJWTKeyChangeThisInProduction88!"
 Environment="PORT=8080"
 Environment="MODE=hybrid"
 Environment="ALLOWED_ORIGINS=*"
-ExecStart=/opt/voicehub/server/voicehub-server
+ExecStart=$PROJECT_ROOT/server/voicehub-server
 Restart=always
 RestartSec=10
 
