@@ -1,4 +1,6 @@
-const WS_URL = 'ws://31.77.158.177:8080/ws';
+import { config } from '../config';
+
+const WS_URL = config.wsUrl;
 
 type MessageHandler = (msg: any) => void;
 

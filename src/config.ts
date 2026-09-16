@@ -1,21 +1,61 @@
 /**
  * Конфигурация приложения
  * 
- * Для продакшн-деплоя измените URL на ваш домен:
- * - apiUrl: 'https://voicehub.example.com'
- * - wsUrl: 'wss://voicehub.example.com/ws'
- * - sfuUrl: 'wss://voicehub.example.com/sfu'
+ * Универсальная конфигурация без привязки к конкретному IP/домену
+ * 
+ * Приоритет определения URL:
+ * 1. Переменные окружения (VITE_API_URL и т.д.)
+ * 2. Текущий хост (если приложение развернуто на том же сервере)
+ * 3. localhost для разработки
  */
+
+// Определяем базовый URL автоматически
+const getBaseUrl = () => {
+  // 1. Проверяем переменные окружения
+  if ((import.meta as any).env?.VITE_API_URL) {
+    return (import.meta as any).env.VITE_API_URL;
+  }
+  
+  // 2. Используем текущий хост (для продакшена)
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    const host = window.location.hostname;
+    const port = window.location.port || '8080';
+    return `${protocol}//${host}:${port}`;
+  }
+  
+  // 3. Дефолтный localhost для разработки
+  return 'http://localhost:8080';
+};
+
+const BASE_URL = getBaseUrl();
+
+// Определяем WebSocket URL
+const getWsUrl = () => {
+  if ((import.meta as any).env?.VITE_WS_URL) {
+    return (import.meta as any).env.VITE_WS_URL;
+  }
+  
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname;
+    const port = window.location.port || '8080';
+    return `${protocol}//${host}:${port}/ws`;
+  }
+  
+  return 'ws://localhost:8080/ws';
+};
+
+const WS_URL = getWsUrl();
 
 export const config = {
   // ============================================
   // API ENDPOINTS
   // ============================================
   
-  // Сервер на IP 31.77.158.177
-  apiUrl: (import.meta as any).env?.VITE_API_URL || 'http://31.77.158.177:8080',
-  wsUrl: (import.meta as any).env?.VITE_WS_URL || 'ws://31.77.158.177:8080/ws',
-  sfuUrl: (import.meta as any).env?.VITE_SFU_URL || 'ws://31.77.158.177:8080/sfu',
+  apiUrl: BASE_URL,
+  wsUrl: WS_URL,
+  sfuUrl: WS_URL.replace('/ws', '/sfu'),
   
   // ============================================
   // WEBRTC ICE SERVERS
@@ -30,9 +70,9 @@ export const config = {
     // Без TURN многие пользователи не смогут подключиться из-за NAT
     // Раскомментируйте и настройте для продакшн-деплоя:
     // {
-    //   urls: 'turn:voicehub.example.com:3478',
-    //   username: 'voicehub',
-    //   credential: 'YourStrongTurnPassword'
+    //   urls: 'turn:your-turn-server.com:3478',
+    //   username: 'your-username',
+    //   credential: 'your-password'
     // }
   ],
   
@@ -80,7 +120,7 @@ export const config = {
   
   features: {
     // Включить SFU режим
-    enableSFU: true,
+    enableSFU: false, // Отключено, используем только P2P
     // Включить push-to-talk
     enablePushToTalk: true,
     // Включить трансляцию экрана
@@ -112,15 +152,8 @@ export function getApiUrl(path: string): string {
 /**
  * Получить URL для WebSocket соединения
  */
-export function getWsUrl(): string {
+export function getWebSocketUrl(): string {
   return config.wsUrl;
-}
-
-/**
- * Получить URL для SFU соединения
- */
-export function getSfuUrl(): string {
-  return config.sfuUrl;
 }
 
 /**
@@ -142,6 +175,13 @@ export function isSecure(): boolean {
  */
 export function getDomain(): string {
   return window.location.hostname;
+}
+
+/**
+ * Получить текущий порт
+ */
+export function getPort(): string {
+  return window.location.port || '8080';
 }
 
 export default config;

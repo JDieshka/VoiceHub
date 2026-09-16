@@ -2,7 +2,9 @@
  * Authentication service for JWT-based auth
  */
 
-const API_BASE = 'http://31.77.158.177:8080';
+import { config } from '../config';
+
+const API_BASE = config.apiUrl;
 
 export interface AuthResponse {
   access_token: string;
