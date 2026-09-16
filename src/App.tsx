@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ServerSelectionPage } from './components/min/ServerSelectionPage';
 import { AuthPage } from './components/min/AuthPage';
 import { TopBar } from './components/min/TopBar';
 import { ViewTabs } from './components/min/ViewTabs';
@@ -6,8 +7,8 @@ import { ChatView } from './components/min/ChatView';
 import { VoiceView } from './components/min/VoiceView';
 import { ProfileView } from './components/min/ProfileView';
 import { Modal } from './components/min/Modal';
-import { authService } from './services/auth';
-import { websocketService } from './services/websocket';
+import { authService, setServerUrl, getServerUrl } from './services/auth';
+import { websocketService, setWebSocketUrl } from './services/websocket';
 import './styles/min.css';
 
 // Импортируем шрифт
@@ -17,6 +18,11 @@ fontLink.rel = 'stylesheet';
 document.head.appendChild(fontLink);
 
 function App() {
+  // Состояние выбора сервера
+  const [serverUrl, setServerUrlState] = useState<string>(() => {
+    return localStorage.getItem('voicehub-server-url') || '';
+  });
+  
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
   const [currentView, setCurrentView] = useState<'chats' | 'voice' | 'profile'>('chats');
   const [modalType, setModalType] = useState<'chat' | 'channel' | 'server' | null>(null);
@@ -59,6 +65,34 @@ function App() {
       }
     }
   }, [isAuthenticated]);
+
+  // Обработчик выбора сервера
+  const handleServerSelect = (url: string) => {
+    // Сохраняем URL сервера
+    localStorage.setItem('voicehub-server-url', url);
+    setServerUrlState(url);
+    
+    // Устанавливаем URL в сервисах
+    setServerUrl(url);
+    setWebSocketUrl(url);
+    
+    console.log('[App] Server selected:', url);
+  };
+
+  // Обработчик смены сервера
+  const handleChangeServer = () => {
+    // Выходим из аккаунта
+    authService.logout();
+    websocketService.disconnect();
+    
+    // Очищаем URL сервера
+    localStorage.removeItem('voicehub-server-url');
+    setServerUrlState('');
+    setIsAuthenticated(false);
+    setActiveRoomId(null);
+    
+    console.log('[App] Server changed, returning to server selection');
+  };
 
   // Обработчики аутентификации
   const handleLogin = async (username: string, password: string) => {
@@ -133,6 +167,17 @@ function App() {
     setActiveRoomId(null);
   };
 
+  // Если сервер не выбран - показываем страницу выбора сервера
+  if (!serverUrl) {
+    return (
+      <ServerSelectionPage 
+        onServerSelect={handleServerSelect}
+        lastServerUrl={localStorage.getItem('voicehub-server-url') || undefined}
+      />
+    );
+  }
+
+  // Если не авторизован - показываем страницу авторизации
   if (!isAuthenticated) {
     return <AuthPage onLogin={handleLogin} onRegister={handleRegister} />;
   }
@@ -180,8 +225,10 @@ function App() {
           nickname={user.nickname}
           email={user.email}
           status={user.status}
+          serverUrl={serverUrl}
           onEdit={() => console.log('Edit profile')}
           onLogout={handleLogout}
+          onChangeServer={handleChangeServer}
           onChangePassword={() => console.log('Change password')}
         />
       )}

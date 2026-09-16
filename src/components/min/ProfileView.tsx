@@ -5,8 +5,10 @@ interface ProfileViewProps {
   nickname: string;
   email: string;
   status: string;
+  serverUrl?: string;
   onEdit: () => void;
   onLogout: () => void;
+  onChangeServer: () => void;
   onChangePassword: () => void;
 }
 
@@ -15,8 +17,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   nickname,
   email,
   status,
+  serverUrl,
   onEdit,
   onLogout,
+  onChangeServer,
   onChangePassword
 }) => {
   return (
@@ -26,6 +30,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <span className="avatar a120"></span>
           <h2>{username}</h2>
           <div className="nick">#{nickname}</div>
+          <div className="prow">
+            <span>сервер</span>
+            <b style={{ fontSize: '7px' }}>{serverUrl || 'не указан'}</b>
+          </div>
           <div className="prow">
             <span>никнейм</span>
             <b>{nickname}</b>
@@ -43,6 +51,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <b>{status}</b>
           </div>
           <div className="profile-actions">
+            <button className="btn mint" onClick={onChangeServer}>сменить сервер</button>
             <button className="btn pink" onClick={onEdit}>редактировать</button>
             <button className="btn gray" onClick={onLogout}>выйти</button>
           </div>

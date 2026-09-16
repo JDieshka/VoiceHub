@@ -1,380 +1,359 @@
-# VoiceHub — Голосовые каналы и трансляции
+# 🌐 MIN Messenger - Универсальное приложение
 
-Десктопное приложение с голосовыми каналами и возможностью трансляции экрана, реализованное в стиле Discord.
+## 🎯 Концепция
 
-## Архитектура
+**MIN Messenger** - это универсальное приложение-клиент, которое может подключаться к любому серверу VoiceHub. 
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Frontend (React)                       │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │ WebSocket   │  │  WebRTC      │  │  UI           │  │
-│  │ Client      │  │  Manager     │  │  Components   │  │
-│  └──────┬──────┘  └──────┬───────┘  └───────────────┘  │
-│         │                │                               │
-└─────────┼────────────────┼───────────────────────────────┘
-          │ WebSocket      │ WebRTC P2P (audio/video)
-          │                │
-┌─────────┼────────────────┼───────────────────────────────┐
-│         ▼                │                               │
-│  ┌─────────────┐        │                               │
-│  │ Go Server   │        │                               │
-│  │ ┌─────────┐ │        │                               │
-│  │ │ WS Hub  │ │        │                               │
-│  │ │         │ │        │                               │
-│  │ │ Signal  │ │◄───────┘ (SDP/ICE exchange)            │
-│  │ │ Handler │ │                                        │
-│  │ └─────────┘ │                                        │
-│  └─────────────┘                                        │
-│                  Go Backend (port 8080)                  │
-└──────────────────────────────────────────────────────────┘
-```
+Как Discord:
+- ✅ Одно приложение для всех
+- ✅ Пользователь выбирает сервер при входе
+- ✅ Можно подключаться к разным серверам
+- ✅ Каждый может развернуть свой сервер
 
-## 🚀 Автоматические релизы
+---
 
-Проект использует систему автоматических релизов! Просто измените версию в `package.json` и запушьте в `main`:
+## 🚀 Для пользователей
 
+### Как начать использовать
+
+1. **Скачайте приложение** (или откройте веб-версию)
+2. **Введите URL сервера** (получите у администратора)
+   - Пример: `http://31.77.158.177:8080`
+   - Пример: `https://voicehub.example.com`
+3. **Зарегистрируйтесь** на этом сервере
+4. **Начните общаться!**
+
+### Смена сервера
+
+1. Откройте **Профиль**
+2. Нажмите **"Сменить сервер"**
+3. Введите новый URL
+4. Подключитесь к новому серверу
+
+---
+
+## 🛠️ Для администраторов
+
+### Развертывание своего сервера
+
+#### Вариант 1: VPS (рекомендуется)
+
+**1. Арендуйте VPS**
+- Минимум: 1 CPU, 1 GB RAM, 20 GB disk
+- ОС: Ubuntu 22.04
+- Провайдеры: Hetzner, DigitalOcean, AWS, etc.
+
+**2. Подключитесь к серверу**
 ```bash
-# Измените версию в package.json
-# "version": "2.1.0"
-
-git add package.json
-git commit -m "chore: bump version to 2.1.0"
-git push origin main
+ssh root@your-server-ip
 ```
 
-GitHub Actions автоматически:
-- ✅ Создаст тег `v2.1.0`
-- ✅ Соберет frontend и Windows приложение
-- ✅ Создает GitHub Release
-- ✅ Загрузит все файлы
+**3. Установите зависимости**
+```bash
+# Go
+wget https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
 
-**Подробности:** [AUTO_RELEASE.md](./AUTO_RELEASE.md)
+# PostgreSQL
+apt update
+apt install -y postgresql postgresql-contrib
 
-## Что реализовано
-
-### Этап 1: WebSocket-сервер на Go ✅
-- `server/main.go` — точка входа HTTP-сервера
-- `server/internal/ws/hub.go` — управление WebSocket-соединениями
-- `server/internal/signaling/handler.go` — обработка подключений
-- `server/internal/models/types.go` — типы данных
-
-**Возможности сервера:**
-- Регистрация/удаление клиентов
-- Управление комнатами (голосовыми каналами)
-- Пересылка сигнальных сообщений между пирами
-- Трансляция состояния канала всем участникам
-- Ping/Pong для поддержания соединения
-- CORS для разработки
-
-### Этап 2: Сигнализация для WebRTC ✅
-- `src/services/websocket.ts` — WebSocket-клиент
-- `src/services/webrtc.ts` — WebRTC-менеджер (P2P mesh)
-
-**Протокол сигнализации:**
-```json
-// Присоединение к каналу
-{"type": "join", "channelId": "vc-1", "payload": {"user": {"id": "...", "name": "..."}}}
-
-// WebRTC Offer
-{"type": "offer", "channelId": "vc-1", "from": "user-1", "to": "user-2", "payload": {"sdp": "...", "type": "offer"}}
-
-// WebRTC Answer
-{"type": "answer", "channelId": "vc-1", "from": "user-2", "to": "user-1", "payload": {"sdp": "...", "type": "answer"}}
-
-// ICE Candidate
-{"type": "ice-candidate", "channelId": "vc-1", "from": "user-1", "to": "user-2", "payload": {"candidate": "...", "sdpMLineIndex": 0}}
-
-// Обновление состояния канала (от сервера)
-{"type": "channel-update", "channelId": "vc-1", "payload": [...users]}
+# Node.js
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
 ```
 
-## Запуск
+**4. Клонируйте репозиторий**
+```bash
+git clone https://github.com/your-username/voicehub.git
+cd voicehub
+```
 
-### 1. Запуск Go-сервера
+**5. Настройте базу данных**
+```bash
+# Создайте пользователя и БД
+sudo -u postgres psql
+CREATE USER voicehub WITH PASSWORD 'your-password';
+CREATE DATABASE voicehub OWNER voicehub;
+\q
+```
 
+**6. Запустите сервер**
 ```bash
 cd server
-
-# Установка зависимостей
-go mod tidy
-
-# Запуск сервера
+export DATABASE_URL="postgres://voicehub:your-password@localhost:5432/voicehub"
+export JWT_SECRET="your-secret-key-min-32-chars"
 go run main.go
 ```
 
-Сервер запустится на `http://localhost:8080`
-- WebSocket: `ws://localhost:8080/ws`
-- Health check: `http://localhost:8080/health`
+**7. Настройте автозапуск (systemd)**
+```bash
+cat > /etc/systemd/system/voicehub.service << EOF
+[Unit]
+Description=VoiceHub Server
+After=network.target postgresql.service
 
-### 2. Запуск фронтенда
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/voicehub/server
+Environment="DATABASE_URL=postgres://voicehub:your-password@localhost:5432/voicehub"
+Environment="JWT_SECRET=your-secret-key-min-32-chars"
+ExecStart=/usr/local/go/bin/go run main.go
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable voicehub
+systemctl start voicehub
+```
+
+**8. Отдайте URL пользователям**
+```
+http://your-server-ip:8080
+```
+
+#### Вариант 2: Docker
+
+**1. Создайте docker-compose.yml**
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    build: ./server
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://voicehub:password@db:5432/voicehub
+      - JWT_SECRET=your-secret-key
+    depends_on:
+      - db
+  
+  frontend:
+    build: .
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+  
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=voicehub
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=voicehub
+    volumes:
+      - postgres_/var/lib/postgresql/data
+
+volumes:
+  postgres_
+```
+
+**2. Запустите**
+```bash
+docker-compose up -d
+```
+
+**3. Отдайте URL пользователям**
+```
+http://your-server-ip:3000
+```
+
+---
+
+## 📱 Как это работает
+
+### Архитектура
+
+```
+┌─────────────────┐
+│   Приложение    │
+│   (один код)    │
+└────────┬────────┘
+         │
+         │ Пользователь вводит URL сервера
+         │
+         ▼
+┌─────────────────┐
+│  Проверка       │
+│  доступности    │
+│  GET /health    │
+└────────┬────────┘
+         │
+         │ Сервер доступен
+         │
+         ▼
+┌─────────────────┐
+│  Авторизация    │
+│  POST /api/auth │
+└────────┬────────┘
+         │
+         │ JWT токен
+         │
+         ▼
+┌─────────────────┐
+│  Использование  │
+│  WebSocket      │
+│  WebRTC P2P     │
+└─────────────────┘
+```
+
+### Поток данных
+
+1. **Пользователь открывает приложение**
+   - Показывается страница выбора сервера
+
+2. **Вводит URL сервера**
+   - Приложение проверяет `GET /health`
+   - Если ОК → переход к авторизации
+   - Если ошибка → показывается сообщение
+
+3. **Регистрируется/Входит**
+   - Все запросы идут на выбранный сервер
+   - JWT токен сохраняется в localStorage
+
+4. **Использует приложение**
+   - Текстовые чаты через WebSocket
+   - Голосовые чаты через WebRTC P2P
+   - Видео через WebRTC P2P
+
+5. **Меняет сервер**
+   - Профиль → "Сменить сервер"
+   - Возврат к шагу 1
+
+---
+
+## 🔧 Технические детали
+
+### API Endpoints
+
+**Health Check:**
+```
+GET /health
+Response: {"status": "ok", "service": "voicehub-server", "version": "2.0.0"}
+```
+
+**Authentication:**
+```
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
+GET /api/auth/me
+```
+
+**WebSocket:**
+```
+WS /ws?userId={id}&userName={name}
+```
+
+### Хранение данных
+
+**localStorage:**
+- `voicehub-server-url` - URL выбранного сервера
+- `voicehub-access-token` - JWT токен
+- `voicehub-refresh-token` - Refresh токен
+- `voicehub-user` - Данные пользователя
+
+### Безопасность
+
+- ✅ JWT токены для аутентификации
+- ✅ bcrypt для хэширования паролей
+- ✅ HTTPS для продакшена
+- ✅ CORS настройки
+- ✅ Проверка сервера перед подключением
+
+---
+
+## 📊 Сравнение с аналогами
+
+| Функция | Discord | Telegram | MIN Messenger |
+|---------|---------|----------|---------------|
+| Выбор сервера | ✅ | ❌ | ✅ |
+| Свой сервер | ❌ | ❌ | ✅ |
+| P2P аудио | ❌ | ❌ | ✅ |
+| P2P видео | ❌ | ❌ | ✅ |
+| Open Source | ❌ | ❌ | ✅ |
+| Self-hosted | ❌ | ❌ | ✅ |
+
+---
+
+## 🎯 Преимущества
+
+### Для пользователей
+
+✅ **Свобода выбора** - можно подключиться к любому серверу  
+✅ **Приватность** - можно использовать свой сервер  
+✅ **Контроль** - данные хранятся на вашем сервере  
+✅ **Без рекламы** - open source проект  
+
+### Для администраторов
+
+✅ **Полный контроль** - свой сервер, свои правила  
+✅ **Приватность** - данные пользователей у вас  
+✅ **Кастомизация** - можно менять код  
+✅ **Бесплатно** - open source  
+
+---
+
+## 🚀 Быстрый старт
+
+### Для пользователей
+
+1. Откройте приложение
+2. Введите URL сервера (получите у администратора)
+3. Зарегистрируйтесь
+4. Начните общаться!
+
+### Для администраторов
 
 ```bash
-# В корне проекта
-npm install
-npm run dev
+# 1. Клонируйте репозиторий
+git clone https://github.com/your-username/voicehub.git
+cd voicehub
+
+# 2. Установите зависимости
+cd server
+go mod download
+
+# 3. Настройте БД
+export DATABASE_URL="postgres://voicehub:password@localhost:5432/voicehub"
+export JWT_SECRET="your-secret-key"
+
+# 4. Запустите сервер
+go run main.go
+
+# 5. Отдайте URL пользователям
+# http://your-server-ip:8080
 ```
 
-Фронтенд запустится на `http://localhost:5173`
+---
 
-### 3. Тестирование голосовой связи
+## 📚 Документация
 
-1. Откройте фронтенд в **двух вкладках** браузера
-2. В каждой вкладке подключитесь к одному голосовому каналу
-3. Разрешите доступ к микрофону
-4. Говорите — звук будет передаваться через WebRTC P2P!
+- **SERVER_SELECTION.md** - выбор сервера
+- **UNIVERSAL_CONFIG.md** - универсальная конфигурация
+- **DEPLOY_31.77.158.177.md** - развертывание на конкретном сервере
+- **QUICK_START.md** - быстрый старт
+- **P2P_INTEGRATION_COMPLETE.md** - интеграция P2P
 
-## Структура проекта
+---
 
-```
-├── server/                     # Go backend
-│   ├── main.go                # Точка входа
-│   ├── go.mod                 # Go модуль
-│   └── internal/
-│       ├── ws/
-│       │   └── hub.go         # WebSocket hub
-│       ├── signaling/
-│       │   └── handler.go     # HTTP/WS обработчики
-│       └── models/
-│           └── types.go       # Модели данных
-│
-├── src/                       # React frontend
-│   ├── App.tsx               # Главный компонент
-│   ├── types.ts              # TypeScript типы
-│   ├── store.ts              # Данные и моки
-│   ├── services/
-│   │   ├── websocket.ts      # WebSocket клиент
-│   │   └── webrtc.ts         # WebRTC менеджер
-│   └── components/
-│       ├── ServerSidebar.tsx  # Список серверов
-│       ├── ChannelList.tsx    # Список каналов
-│       ├── Chat.tsx           # Текстовый чат
-│       ├── VoiceView.tsx      # Голосовой канал
-│       └── MembersList.tsx    # Список участников
-│
-└── README.md
-```
+## 🎉 Итог
 
-## Технологии
+**MIN Messenger** - это:
 
-### Backend (Go)
-- **gorilla/websocket** — WebSocket-сервер
-- **google/uuid** — генерация ID
-- Стандартная библиотека `net/http` — HTTP-сервер
+✅ Универсальное приложение для любого сервера  
+✅ Пользователь сам выбирает куда подключиться  
+✅ Каждый может развернуть свой сервер  
+✅ Open source и бесплатно  
+✅ P2P для минимальной задержки  
+✅ Приватность и контроль  
 
-### Frontend (React/TypeScript)
-- **React 18** — UI-фреймворк
-- **TypeScript** — типизация
-- **Tailwind CSS** — стилизация
-- **WebRTC API** — реальное аудио/видео
-- **WebSocket API** — сигнализация
-
-### WebRTC
-- **P2P Mesh topology** — каждый клиент соединён с каждым
-- **STUN серверы Google** — для NAT traversal
-- **Opus codec** — аудио-кодек (встроен в браузер)
-- **getDisplayMedia()** — захват экрана
-
-## Режимы работы
-
-### Демо-режим (без сервера)
-- UI полностью функционален
-- Трансляция экрана работает (локально)
-- Текстовый чат работает (локально)
-- Нет реального аудио между клиентами
-
-### Полный режим (с Go-сервером)
-- Всё из демо-режима +
-- Реальная голосовая связь через WebRTC
-- Синхронизация участников между клиентами
-- Реальная трансляция экрана другим пользователям
-- Текстовые сообщения синхронизируются
-
-## Этап 3: Захват микрофона и аудио-обработка ✅
-
-### Реализованные компоненты:
-
-**1. AudioService (`src/services/audio.ts`)**
-- Захват микрофона через `getUserMedia()` с полной обработкой
-- Анализ уровня голоса в реальном времени через Web Audio API
-- Voice Activity Detection (VAD) — определение когда пользователь говорит
-- Настройки: эхоподавление, шумоподавление, автоусиление
-- Выбор устройства ввода/вывода
-- Тестовый звук для проверки динамиков
-- Сохранение настроек в localStorage
-
-**2. VoiceIndicator (`src/components/VoiceIndicator.tsx`)**
-- Визуализация уровня голоса на Canvas
-- Круговой индикатор с анимированными полосками
-- Отображение пикового уровня
-- Индикация статуса (говорит/тишина)
-
-**3. AudioSettings (`src/components/AudioSettings.tsx`)**
-- Модальное окно настроек голоса
-- Выбор микрофона из списка устройств
-- Выбор устройства вывода
-- Тест микрофона с визуализацией
-- Тест динамиков (воспроизведение тона 440Hz)
-- Переключатели обработки звука (echo, noise, AGC)
-- Регулятор чувствительности
-
-**4. ConnectionStats (`src/components/ConnectionStats.tsx`)**
-- Статистика WebRTC соединения
-- Битрейт, задержка, потери пакетов, джиттер
-- Индикатор качества соединения (1-5 полосок)
-- Цветовая индикация проблем
-
-**5. PushToTalk (`src/components/PushToTalk.tsx`)**
-- Режим "нажми чтобы говорить"
-- Настраиваемая горячая клавиша
-- Визуальная индикация активности
-- Сохранение настроек
-
-**6. Обновлённый VoiceView**
-- Интеграция всех аудио-компонентов
-- Реальный индикатор уровня голоса
-- Панель настроек внизу экрана
-- Статистика соединения в сайдбаре
-
-### Что работает:
-✅ Захват микрофона с обработкой (эхо, шум, AGC)
-✅ Анализ уровня голоса в реальном времени
-✅ Визуализация голосовой активности
-✅ Выбор микрофона из списка
-✅ Тестирование микрофона и динамиков
-✅ Push-to-Talk с настраиваемой клавишей
-✅ Статистика WebRTC соединения
-✅ Сохранение настроек между сессиями
-
-## Этап 4: P2P аудио между клиентами ✅
-
-### Реализовано:
-- **WebRTC P2P Mesh** — каждый клиент соединён напрямую с каждым
-- **Автоматическая сигнализация** — обмен SDP offer/answer через WebSocket
-- **ICE candidates** — автоматический обмен через сигнальный сервер
-- **Статистика соединения** — битрейт, RTT, packet loss, jitter для каждого peer
-- **Обработка отключений** — автоматическое удаление peer при disconnect
-- **Множественные треки** — поддержка аудио + видео (screen share) одновременно
-
-### Архитектура P2P Mesh:
-```
-Клиент A ←→ Клиент B
-   ↕           ↕
-Клиент C ←→ Клиент D
-
-Каждый клиент отправляет свой поток всем остальным напрямую.
-Преимущества: минимальная задержка, нет зависимости от сервера
-Недостатки: O(n²) соединений, высокая нагрузка на upload
-```
-
-### Что работает:
-✅ Захват микрофона через AudioService
-✅ WebRTC P2P соединения между клиентами
-✅ Передача аудио в реальном времени
-✅ Screen sharing через WebRTC
-✅ Автоматическая сигнализация (offer/answer/ICE)
-✅ Статистика качества для каждого peer
-✅ Обработка отключений и переподключений
-
-## Этап 5: SFU для групповых звонков ✅
-
-### Реализовано:
-
-**Go SFU-сервер (`server/internal/sfu/sfu.go`)**
-- Полноценный SFU на базе **Pion WebRTC**
-- Приём RTP-пакетов от каждого участника
-- Пересылка пакетов всем остальным участникам
-- Управление комнатами (voice channels)
-- Обработка ICE candidates
-- Статистика и мониторинг
-
-**SFU-клиент (`src/services/sfu.ts`)**
-- Подключение к SFU-серверу через WebSocket
-- Отправка локального аудио через WebRTC
-- Приём аудио от других участников
-- Screen sharing через SFU
-- Статистика соединения
-
-**Режимы работы сервера:**
-```bash
-# P2P signaling (mesh topology)
-go run main.go -mode=signaling
-
-# SFU (server forwards media)
-go run main.go -mode=sfu
-
-# Hybrid (both endpoints available)
-go run main.go -mode=hybrid
-```
-
-### Архитектура SFU:
-```
-Клиент A → SFU → Клиент B
-Клиент C → SFU → Клиент A, B
-Клиент D → SFU → Клиент A, B, C
-
-Каждый клиент отправляет ОДИН поток на сервер.
-Сервер пересылает его всем остальным.
-Преимущества: O(n) соединений, масштабируется до 100+ участников
-Недостатки: зависимость от сервера, дополнительная задержка
-```
-
-### Переключение режимов:
-- **P2P** — прямое соединение (лучше для 2-4 человек)
-- **SFU** — через сервер (лучше для 5+ человек)
-- **Авто** — SFU если доступен, иначе P2P
-
-### Что работает:
-✅ SFU-сервер на Go с Pion WebRTC
-✅ Приём и пересылка RTP-пакетов
-✅ Поддержка множества комнат
-✅ Автоматическое управление комнатами
-✅ SFU-клиент на фронтенде
-✅ Переключение между P2P и SFU
- Screen sharing через SFU
-✅ Статистика соединения для SFU
-
-## Этап 7: Десктопное приложение на Tauri ✅
-
-### Реализовано:
-
-**Tauri Backend (Rust):**
-- `src-tauri/src/main.rs` — системный трей, глобальные горячие клавиши
-- `src-tauri/src/commands.rs` — Tauri commands (API для фронтенда)
-- `src-tauri/src/tray.rs` — управление системным треем
-- `src-tauri/src/audio.rs` — доступ к аудио-устройствам через cpal
-
-**Нативные возможности:**
-✅ Системный трей с меню (mute/deafen/status)
-✅ Глобальные горячие клавиши (push-to-talk работает без фокуса)
-✅ Нативные уведомления
-✅ Сворачивание в трей при закрытии
-✅ Автозапуск при старте системы
-✅ Список аудио-устройств на уровне ОС
-✅ Системная информация (CPU, RAM)
-
-**Преимущества Tauri:**
-- Размер: ~10 MB (vs 150 MB у Electron)
-- RAM: ~50 MB (vs 300 MB у Electron)
-- Время запуска: <1 сек
-
-### Запуск:
-
-```bash
-# Установить Tauri CLI
-cargo install tauri-cli
-
-# Режим разработки
-cargo tauri dev
-
-# Сборка
-cargo tauri build
-```
-
-## Следующие этапы
-
-- [x] Этап 3: Реальный захват микрофона ✅
-- [x] Этап 4: P2P аудио между клиентами ✅
-- [x] Этап 5: SFU для групповых звонков ✅
-- [x] Этап 6: БД + авторизация (PostgreSQL + JWT) ✅
-- [x] Этап 7: Десктоп-обёртка (Tauri) ✅
+**Разверните свой сервер и начните общаться!** 🚀

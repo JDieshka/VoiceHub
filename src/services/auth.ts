@@ -2,9 +2,15 @@
  * Authentication service for JWT-based auth
  */
 
-import { config } from '../config';
+// Динамический URL сервера - устанавливается при выборе сервера
+let API_BASE = '';
 
-const API_BASE = config.apiUrl;
+export const setServerUrl = (url: string) => {
+  API_BASE = url;
+  console.log('[Auth] Server URL set to:', API_BASE);
+};
+
+export const getServerUrl = () => API_BASE;
 
 export interface AuthResponse {
   access_token: string;

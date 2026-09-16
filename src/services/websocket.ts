@@ -1,6 +1,13 @@
-import { config } from '../config';
+// Динамический WebSocket URL - устанавливается при выборе сервера
+let WS_URL = '';
 
-const WS_URL = config.wsUrl;
+export const setWebSocketUrl = (url: string) => {
+  // Преобразуем HTTP URL в WebSocket URL
+  WS_URL = url.replace(/^http/, 'ws') + '/ws';
+  console.log('[WS] WebSocket URL set to:', WS_URL);
+};
+
+export const getWebSocketUrl = () => WS_URL;
 
 type MessageHandler = (msg: any) => void;
 
