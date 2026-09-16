@@ -7,6 +7,7 @@ import { VoiceView } from './components/min/VoiceView';
 import { ProfileView } from './components/min/ProfileView';
 import { Modal } from './components/min/Modal';
 import { authService } from './services/auth';
+import { websocketService } from './services/websocket';
 import './styles/min.css';
 
 // Импортируем шрифт
@@ -19,6 +20,8 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
   const [currentView, setCurrentView] = useState<'chats' | 'voice' | 'profile'>('chats');
   const [modalType, setModalType] = useState<'chat' | 'channel' | null>(null);
+  const [userId, setUserId] = useState('');
+  const [userName, setUserName] = useState('');
   
   // Состояния для чатов
   const [chats, setChats] = useState([
@@ -73,11 +76,6 @@ function App() {
   ]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   
-  // Состояния для голосовых контролов
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  
   // Пользователь
   const [user, setUser] = useState({
     username: 'профиль 1',
@@ -85,6 +83,17 @@ function App() {
     email: 'anna@min.me',
     status: 'в сети'
   });
+
+  // Загрузка пользователя при аутентификации
+  useEffect(() => {
+    if (isAuthenticated) {
+      const currentUser = authService.getUser();
+      if (currentUser) {
+        setUserId(currentUser.id || 'user-' + Date.now());
+        setUserName(currentUser.username || currentUser.email || 'User');
+      }
+    }
+  }, [isAuthenticated]);
 
   // Обработчики аутентификации
   const handleLogin = async (username: string, password: string) => {
@@ -109,7 +118,9 @@ function App() {
 
   const handleLogout = () => {
     authService.logout();
+    websocketService.disconnect();
     setIsAuthenticated(false);
+    setActiveRoomId(null);
   };
 
   // Обработчики для чатов
@@ -138,23 +149,12 @@ function App() {
   };
 
   // Обработчики для голосовых чатов
-  const handleToggleMute = () => {
-    setIsMuted(!isMuted);
-  };
-
-  const handleToggleCamera = () => {
-    setIsCameraOn(!isCameraOn);
-  };
-
-  const handleScreenShare = () => {
-    setIsScreenSharing(!isScreenSharing);
+  const handleRoomSelect = (roomId: string) => {
+    setActiveRoomId(roomId);
   };
 
   const handleLeaveRoom = () => {
     setActiveRoomId(null);
-    setIsMuted(false);
-    setIsCameraOn(false);
-    setIsScreenSharing(false);
   };
 
   if (!isAuthenticated) {
@@ -189,15 +189,11 @@ function App() {
         <VoiceView 
           servers={servers}
           activeRoomId={activeRoomId}
-          onRoomSelect={setActiveRoomId}
+          onRoomSelect={handleRoomSelect}
           onCreateChannel={() => setModalType('channel')}
-          onToggleMute={handleToggleMute}
-          onToggleCamera={handleToggleCamera}
-          onScreenShare={handleScreenShare}
           onLeave={handleLeaveRoom}
-          isMuted={isMuted}
-          isCameraOn={isCameraOn}
-          isScreenSharing={isScreenSharing}
+          userId={userId}
+          userName={userName}
         />
       )}
 

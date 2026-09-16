@@ -1,4 +1,5 @@
 import React from 'react';
+import { authService } from '../../services/auth';
 
 interface AuthPageProps {
   onLogin: (username: string, password: string) => void;
@@ -62,7 +63,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onRegister }) => {
           <input className="field" type="password" name="password" required />
           <label>повторите пароль</label>
           <input className="field" type="password" name="passwordConfirm" required />
-          <button className="btn pink" type="submit">ВОЙТИ</button>
+          <button className="btn pink" type="submit">ЗАРЕГИСТРИРОВАТЬСЯ</button>
         </form>
       </div>
     </section>

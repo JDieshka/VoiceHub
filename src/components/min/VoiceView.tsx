@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { webrtcService } from '../../services/webrtc';
+import { websocketService } from '../../services/websocket';
 
 interface Server {
   id: string;
@@ -25,13 +27,9 @@ interface VoiceViewProps {
   activeRoomId: string | null;
   onRoomSelect: (roomId: string) => void;
   onCreateChannel: () => void;
-  onToggleMute: () => void;
-  onToggleCamera: () => void;
-  onScreenShare: () => void;
   onLeave: () => void;
-  isMuted: boolean;
-  isCameraOn: boolean;
-  isScreenSharing: boolean;
+  userId: string;
+  userName: string;
 }
 
 export const VoiceView: React.FC<VoiceViewProps> = ({
@@ -39,15 +37,89 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   activeRoomId,
   onRoomSelect,
   onCreateChannel,
-  onToggleMute,
-  onToggleCamera,
-  onScreenShare,
   onLeave,
-  isMuted,
-  isCameraOn,
-  isScreenSharing
+  userId,
+  userName
 }) => {
   const [openServers, setOpenServers] = useState<Set<string>>(new Set([servers[0]?.id]));
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Инициализация WebRTC при монтировании
+  useEffect(() => {
+    const initMedia = async () => {
+      try {
+        const stream = await webrtcService.initLocalStream();
+        setLocalStream(stream);
+        setIsCameraOn(true);
+        
+        // Показать локальное видео
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('[VoiceView] Failed to initialize media:', error);
+      }
+    };
+
+    initMedia();
+
+    // Настройка обработки удаленных потоков
+    webrtcService.setOnRemoteStream((remoteUserId, stream) => {
+      console.log('[VoiceView] Remote stream received from', remoteUserId);
+      setRemoteStreams(prev => {
+        const next = new Map(prev);
+        next.set(remoteUserId, stream);
+        return next;
+      });
+    });
+
+    webrtcService.setOnRemoteStreamRemoved((remoteUserId) => {
+      console.log('[VoiceView] Remote stream removed from', remoteUserId);
+      setRemoteStreams(prev => {
+        const next = new Map(prev);
+        next.delete(remoteUserId);
+        return next;
+      });
+    });
+
+    return () => {
+      webrtcService.leaveRoom();
+    };
+  }, []);
+
+  // Подключение к комнате при изменении activeRoomId
+  useEffect(() => {
+    if (activeRoomId) {
+      const joinRoom = async () => {
+        try {
+          // Подключиться к WebSocket если еще не подключен
+          if (!websocketService.isConnected()) {
+            await websocketService.connect(userId, userName);
+          }
+          
+          // Присоединиться к комнате
+          websocketService.joinRoom(activeRoomId);
+          console.log('[VoiceView] Joined room:', activeRoomId);
+        } catch (error) {
+          console.error('[VoiceView] Failed to join room:', error);
+        }
+      };
+
+      joinRoom();
+    } else {
+      // Покинуть комнату
+      if (websocketService.isConnected()) {
+        websocketService.disconnect();
+      }
+      webrtcService.leaveRoom();
+      setRemoteStreams(new Map());
+    }
+  }, [activeRoomId, userId, userName]);
 
   const toggleServer = (serverId: string) => {
     const newOpen = new Set(openServers);
@@ -57,6 +129,37 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       newOpen.add(serverId);
     }
     setOpenServers(newOpen);
+  };
+
+  const handleToggleMute = () => {
+    const muted = webrtcService.toggleMute();
+    setIsMuted(muted);
+  };
+
+  const handleToggleCamera = () => {
+    const cameraOff = webrtcService.toggleCamera();
+    setIsCameraOn(!cameraOff);
+  };
+
+  const handleScreenShare = async () => {
+    try {
+      if (!isScreenSharing) {
+        await webrtcService.startScreenShare();
+        setIsScreenSharing(true);
+      } else {
+        webrtcService.stopScreenShare();
+        setIsScreenSharing(false);
+      }
+    } catch (error) {
+      console.error('[VoiceView] Screen share failed:', error);
+    }
+  };
+
+  const handleLeave = () => {
+    webrtcService.leaveRoom();
+    websocketService.disconnect();
+    setRemoteStreams(new Map());
+    onLeave();
   };
 
   const activeRoom = servers.flatMap(s => s.rooms).find(r => r.id === activeRoomId);
@@ -137,24 +240,48 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       <main className="voice-main">
         <div className="stage">
           <div className="video-cards">
-            {activeRoom ? (
-              activeRoom.participants.map(participant => (
-                <div key={participant.id} className="video-card">
-                  <span className="avatar a90"></span>
-                  <div className="vname">{participant.name}</div>
-                  <svg className="ic" viewBox="0 0 24 24">
-                    <path d="M14 7a4 4 0 0 1 5-4l-3 3 2 2 3-3a4 4 0 0 1-5 5l-8 8-2-2z"/>
-                  </svg>
-                </div>
-              ))
-            ) : (
+            {/* Локальное видео */}
+            {localStream && (
+              <div className="video-card">
+                <video 
+                  ref={localVideoRef}
+                  autoPlay 
+                  playsInline 
+                  muted
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div className="vname">{userName} (Вы)</div>
+                <svg className="ic" viewBox="0 0 24 24">
+                  <path d="M14 7a4 4 0 0 1 5-4l-3 3 2 2 3-3a4 4 0 0 1-5 5l-8 8-2-2z"/>
+                </svg>
+              </div>
+            )}
+            
+            {/* Удаленные видео */}
+            {Array.from(remoteStreams.entries()).map(([remoteUserId, stream]) => (
+              <div key={remoteUserId} className="video-card">
+                <video 
+                  ref={el => { if (el) el.srcObject = stream; }}
+                  autoPlay 
+                  playsInline
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div className="vname">Пользователь {remoteUserId.slice(0, 8)}</div>
+                <svg className="ic" viewBox="0 0 24 24">
+                  <path d="M14 7a4 4 0 0 1 5-4l-3 3 2 2 3-3a4 4 0 0 1-5 5l-8 8-2-2z"/>
+                </svg>
+              </div>
+            ))}
+            
+            {/* Если нет активной комнаты */}
+            {!activeRoom && (
               <div style={{ textAlign: 'center', padding: '20px', fontSize: '10px', width: '100%' }}>
                 Выберите комнату для подключения
               </div>
             )}
           </div>
           <div className="controls">
-            <button className="ctrl red" title="выйти" onClick={onLeave}>
+            <button className="ctrl red" title="выйти" onClick={handleLeave}>
               <svg className="ic" viewBox="0 0 24 24">
                 <path d="M4 5c0 8 7 15 15 15l1-4-4-1-1 2a13 13 0 0 1-8-8l2-1-1-4z"/>
                 <path d="M16 4l5 5M21 4l-5 5"/>
@@ -163,7 +290,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
             <button 
               className={`ctrl ${isScreenSharing ? 'mint' : ''}`} 
               title="экран" 
-              onClick={onScreenShare}
+              onClick={handleScreenShare}
             >
               <svg className="ic" viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="12"/>
@@ -176,7 +303,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
             <button 
               className={`ctrl ${isMuted ? 'red' : ''}`} 
               title="микрофон" 
-              onClick={onToggleMute}
+              onClick={handleToggleMute}
             >
               <svg className="ic" viewBox="0 0 24 24">
                 <rect x="9" y="3" width="6" height="10" rx="3"/>
@@ -186,7 +313,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
             <button 
               className={`ctrl ${isCameraOn ? 'mint' : ''}`} 
               title="камера" 
-              onClick={onToggleCamera}
+              onClick={handleToggleCamera}
             >
               <svg className="ic" viewBox="0 0 24 24">
                 <circle cx="12" cy="9" r="6"/>
