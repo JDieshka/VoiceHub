@@ -49,10 +49,10 @@ function App() {
   
   // Пользователь
   const [user, setUser] = useState({
-    username: 'профиль 1',
-    nickname: 'никнейм',
-    email: 'anna@min.me',
-    status: 'в сети'
+    username: '',
+    nickname: '',
+    email: '',
+    status: 'offline'
   });
 
   // Загрузка пользователя при аутентификации
@@ -62,6 +62,14 @@ function App() {
       if (currentUser) {
         setUserId(currentUser.id || 'user-' + Date.now());
         setUserName(currentUser.username || currentUser.email || 'User');
+        
+        // Обновляем данные профиля реальными данными из БД
+        setUser({
+          username: currentUser.username || 'Пользователь',
+          nickname: currentUser.username || 'user',
+          email: currentUser.email || '',
+          status: currentUser.status || 'online'
+        });
       }
     }
   }, [isAuthenticated]);
