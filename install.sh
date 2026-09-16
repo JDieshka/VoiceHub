@@ -203,6 +203,28 @@ fi
 info "Зависимости загружены"
 echo ""
 
+# Определяем какую версию использовать
+GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+GO_MAJOR=$(echo $GO_VERSION | cut -d. -f1)
+GO_MINOR=$(echo $GO_VERSION | cut -d. -f2)
+
+USE_SIMPLE=false
+
+# Проверяем версию Go
+if [ "$GO_MAJOR" -lt 1 ] || ([ "$GO_MAJOR" -eq 1 ] && [ "$GO_MINOR" -lt 24 ]); then
+    warn "Go $GO_VERSION < 1.24, используется упрощенная версия (без SFU)"
+    USE_SIMPLE=true
+fi
+
+# Проверяем наличие main-simple.go
+if [ "$USE_SIMPLE" = true ] && [ -f "main-simple.go" ]; then
+    info "Используется main-simple.go (упрощенная версия без SFU)"
+    cp main.go main.go.backup
+    cp main-simple.go main.go
+else
+    info "Используется main.go (полная версия с SFU)"
+fi
+
 # Компиляция
 info "Компиляция бинарника..."
 echo ""
@@ -210,11 +232,23 @@ echo ""
 # Выводим подробную информацию о компиляции
 if ! go build -v -o voicehub-server main.go 2>&1; then
     error "Ошибка компиляции!"
+    
+    # Восстанавливаем оригинал если использовали simple версию
+    if [ "$USE_SIMPLE" = true ] && [ -f "main.go.backup" ]; then
+        mv main.go.backup main.go
+    fi
+    
     echo ""
     echo "Попробуйте скомпилировать вручную для диагностики:"
     echo "  cd server"
     echo "  go build -v -o voicehub-server main.go"
     exit 1
+fi
+
+# Восстанавливаем оригинал если использовали simple версию
+if [ "$USE_SIMPLE" = true ] && [ -f "main.go.backup" ]; then
+    mv main.go.backup main.go
+    info "Оригинальный main.go восстановлен"
 fi
 
 echo ""
