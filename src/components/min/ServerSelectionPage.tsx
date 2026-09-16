@@ -47,31 +47,48 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
     try {
       // Проверяем доступность сервера
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      console.log('[ServerSelection] Checking server:', `${url}/health`);
 
       const response = await fetch(`${url}/health`, {
         method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache',
         signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        },
       });
 
       clearTimeout(timeoutId);
+
+      console.log('[ServerSelection] Response status:', response.status);
 
       if (!response.ok) {
         throw new Error(`Сервер вернул статус ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('[ServerSelection] Response data:', data);
       
       if (data.status !== 'ok') {
         throw new Error('Сервер не ответил корректно');
       }
 
       // Сервер доступен, переходим к авторизации
+      console.log('[ServerSelection] Server is available, proceeding to auth');
       onServerSelect(url);
     } catch (err) {
+      console.error('[ServerSelection] Connection error:', err);
+      
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
-          setError('Таймаут подключения. Проверьте адрес сервера.');
+          setError('Таймаут подключения (10 секунд). Проверьте адрес сервера и убедитесь, что сервер запущен.');
+        } else if (err.message.includes('Failed to fetch')) {
+          setError('Не удалось подключиться к серверу. Возможные причины:\n• Сервер не запущен\n• Неверный адрес\n• Проблемы с сетью\n• CORS не настроен на сервере');
+        } else if (err.message.includes('CORS')) {
+          setError('Ошибка CORS. Сервер не разрешает запросы с этого домена.');
         } else {
           setError(`Не удалось подключиться к серверу: ${err.message}`);
         }
@@ -158,6 +175,18 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
           <p>• http://localhost:8080 (локальный сервер)</p>
           <p>• http://your-server-ip:8080 (IP адрес)</p>
           <p>• https://your-domain.com (домен)</p>
+          <p style={{ marginTop: '10px', color: '#666' }}>
+            💡 Если не подключается, проверьте:
+          </p>
+          <p style={{ color: '#666' }}>
+            • Сервер запущен на указанном адресе
+          </p>
+          <p style={{ color: '#666' }}>
+            • Порт 8080 открыт в firewall
+          </p>
+          <p style={{ color: '#666' }}>
+            • Откройте консоль браузера (F12) для подробностей
+          </p>
         </div>
       </div>
     </section>

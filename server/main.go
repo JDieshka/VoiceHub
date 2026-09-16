@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
@@ -183,9 +185,22 @@ func handleSFUConnection(sfuServer *sfu.SFU, w http.ResponseWriter, r *http.Requ
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[Health] Health check from %s", r.RemoteAddr)
+	
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok","service":"voicehub-server","version":"2.0.0"}`))
+	
+	response := map[string]interface{}{
+		"status":  "ok",
+		"service": "voicehub-server",
+		"version": "2.0.0",
+		"time":    time.Now().Format(time.RFC3339),
+	}
+	
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("[Health] Error encoding response: %v", err)
+	}
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -226,12 +241,24 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Логируем все запросы для отладки
+		log.Printf("[CORS] %s %s from %s", r.Method, r.URL.Path, r.Header.Get("Origin"))
+		
+		// Устанавливаем CORS заголовки
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+		
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 
+		// Обрабатываем preflight запросы
 		if r.Method == "OPTIONS" {
+			log.Printf("[CORS] Preflight request from %s", origin)
 			w.WriteHeader(http.StatusOK)
 			return
 		}
