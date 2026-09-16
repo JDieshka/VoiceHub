@@ -49,6 +49,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [messages, setMessages] = useState<Array<{ id: string; text: string; isOutgoing: boolean; timestamp: Date }>>([]);
+  const [inputValue, setInputValue] = useState('');
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   // Инициализация WebRTC при монтировании
@@ -161,7 +163,28 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     webrtcService.leaveRoom();
     websocketService.disconnect();
     setRemoteStreams(new Map());
+    setMessages([]);
     onLeave();
+  };
+
+  const handleSendMessage = () => {
+    if (!inputValue.trim()) return;
+
+    const newMessage = {
+      id: Date.now().toString(),
+      text: inputValue.trim(),
+      isOutgoing: true,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, newMessage]);
+    setInputValue('');
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSendMessage();
+    }
   };
 
   const activeRoom = servers.flatMap(s => s.rooms).find(r => r.id === activeRoomId);
@@ -348,27 +371,40 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           </div>
         </div>
         <div className="messages">
-          <div className="msg">
-            <span className="avatar a26"></span>
-            <div className="bubble">Привет!<br/>Как дела?</div>
-          </div>
-          <div className="msg out">
-            <div className="bubble">)))</div>
-          </div>
+          {messages.length > 0 ? (
+            messages.map(msg => (
+              <div key={msg.id} className={`msg ${msg.isOutgoing ? 'out' : ''}`}>
+                {!msg.isOutgoing && <span className="avatar a26"></span>}
+                <div className="bubble">{msg.text}</div>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: '20px', fontSize: '10px', opacity: 0.6 }}>
+              Нет сообщений. Начните общение!
+            </div>
+          )}
         </div>
         <div className="chat-input">
-          <input type="text" placeholder="..." />
-          <button className="icon-btn">
+          <input 
+            type="text" 
+            placeholder="..." 
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+          />
+          <button 
+            className="icon-btn" 
+            title="отправить"
+            onClick={handleSendMessage}
+            disabled={!inputValue.trim()}
+          >
             <svg className="ic" viewBox="0 0 24 24">
-              <path d="M3 7h6l2 2h10v10H3z"/>
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
             </svg>
           </button>
-          <button className="icon-btn">
+          <button className="icon-btn" title="файлы">
             <svg className="ic" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9"/>
-              <circle className="dot" cx="9" cy="9" r="1.4"/>
-              <circle className="dot" cx="14" cy="8" r="1.4"/>
-              <circle className="dot" cx="16" cy="12" r="1.4"/>
+              <path d="M3 7h6l2 2h10v10H3z"/>
             </svg>
           </button>
         </div>

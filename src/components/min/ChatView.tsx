@@ -7,6 +7,13 @@ interface Chat {
   avatar?: string;
 }
 
+interface Message {
+  id: string;
+  text: string;
+  isOutgoing: boolean;
+  timestamp: Date;
+}
+
 interface ChatViewProps {
   chats: Chat[];
   activeChatId: string | null;
@@ -20,6 +27,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onChatSelect,
   onAddChat 
 }) => {
+  const [messages, setMessages] = useState<Record<string, Message[]>>({});
+  const [inputValue, setInputValue] = useState('');
+
+  const handleSendMessage = () => {
+    if (!activeChatId || !inputValue.trim()) return;
+
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: inputValue.trim(),
+      isOutgoing: true,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      [activeChatId]: [...(prev[activeChatId] || []), newMessage]
+    }));
+
+    setInputValue('');
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSendMessage();
+    }
+  };
+
   return (
     <div className="view" id="view-chats">
       <aside className="sidebar mint-side">
@@ -55,15 +89,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <main className="chat-area">
         <div className="messages">
           {activeChatId ? (
-            <>
-              <div className="msg">
-                <span className="avatar a26"></span>
-                <div className="bubble">Привет!<br/>Как дела?</div>
+            messages[activeChatId] && messages[activeChatId].length > 0 ? (
+              messages[activeChatId].map(msg => (
+                <div key={msg.id} className={`msg ${msg.isOutgoing ? 'out' : ''}`}>
+                  {!msg.isOutgoing && <span className="avatar a26"></span>}
+                  <div className="bubble">{msg.text}</div>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px', fontSize: '10px', opacity: 0.6 }}>
+                Нет сообщений. Начните общение!
               </div>
-              <div className="msg out">
-                <div className="bubble">)))</div>
-              </div>
-            </>
+            )
           ) : (
             <div style={{ textAlign: 'center', padding: '20px', fontSize: '10px' }}>
               Выберите чат для начала общения
@@ -71,18 +108,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
           )}
         </div>
         <div className="chat-input">
-          <input type="text" placeholder="..." disabled={!activeChatId} />
+          <input 
+            type="text" 
+            placeholder="..." 
+            disabled={!activeChatId}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+          />
+          <button 
+            className="icon-btn" 
+            title="отправить"
+            onClick={handleSendMessage}
+            disabled={!activeChatId || !inputValue.trim()}
+          >
+            <svg className="ic" viewBox="0 0 24 24">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+            </svg>
+          </button>
           <button className="icon-btn" title="файлы">
             <svg className="ic" viewBox="0 0 24 24">
               <path d="M3 7h6l2 2h10v10H3z"/>
-            </svg>
-          </button>
-          <button className="icon-btn" title="оформление">
-            <svg className="ic" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9"/>
-              <circle className="dot" cx="9" cy="9" r="1.4"/>
-              <circle className="dot" cx="14" cy="8" r="1.4"/>
-              <circle className="dot" cx="16" cy="12" r="1.4"/>
             </svg>
           </button>
         </div>
