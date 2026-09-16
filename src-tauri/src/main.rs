@@ -155,6 +155,7 @@ fn main() {
             commands::check_microphone_availability,
             commands::get_available_microphones,
             commands::check_screen_capture_availability,
+            commands::get_microphone_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running VoiceHub");

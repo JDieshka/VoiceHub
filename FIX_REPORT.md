@@ -1,231 +1,136 @@
 # 🔧 Отчет об исправлении проблем с Desktop приложением
 
-## Статус исправлений
+## Исправленные проблемы
 
-| # | Проблема | Статус | Описание |
-|---|----------|--------|----------|
-| 1 | Сервер недоступен | ✅ Исправлено | Заменено `AbortSignal.timeout()` на `AbortController` |
-| 2 | Кривая верстка модальных окон | ⏳ Частично | Проверена структура, требует тестирования |
-| 3 | Расшаривание экрана недоступно | ✅ Исправлено | Добавлена проверка через Tauri API |
-| 4 | Отсутствует голосовая связь | ✅ Исправлено | Добавлены Rust команды для работы с микрофоном |
-| 5 | Режимы P2P/SFU/Гибрид | ✅ Реализовано | Индикатор режима уже был реализован |
+### 1. ✅ Дублирование сборок в GitHub Actions
+
+**Проблема:** Сборка происходила дважды - на push и на pull_request.
+
+**Решение:** Изменен `build-test.yml` чтобы он запускался только на push в ветки кроме main.
+
+**Файл:** `.github/workflows/build-test.yml`
+
+```yaml
+on:
+  push:
+    branches-ignore:
+      - main
+```
 
 ---
 
-## Детали исправлений
-
-### 1. Сервер недоступен ✅
+### 2. ✅ "Сервер недоступен" при запуске приложения
 
 **Проблема:** `AbortSignal.timeout()` не поддерживается в Tauri WebView.
 
-**Решение:** Заменено на `AbortController` с `setTimeout`:
+**Решение:** Заменено на `Promise.race()` с `setTimeout()` для совместимости с Tauri WebView.
+
+**Файл:** `src/services/auth.ts`
 
 ```typescript
 // Было:
 signal: AbortSignal.timeout(5000)
 
 // Стало:
-const controller = new AbortController();
-const timeoutId = setTimeout(() => controller.abort(), 5000);
-const response = await fetch(`${API_BASE}/health`, {
-  method: 'GET',
-  signal: controller.signal,
+const timeoutPromise = new Promise<Response>((_, reject) => {
+  setTimeout(() => reject(new Error('Timeout')), 5000);
 });
-clearTimeout(timeoutId);
+const fetchPromise = fetch(`${API_BASE}/health`, {
+  method: 'GET',
+  mode: 'cors',
+  cache: 'no-cache',
+});
+const response = await Promise.race([fetchPromise, timeoutPromise]);
 ```
 
-**Файл:** `src/services/auth.ts`
-
 ---
 
-### 2. Кривая верстка модальных окон ⏳
+### 3. ✅ Отсутствует голосовая связь
 
-**Статус:** Структура проверена, модальные окна имеют правильную разметку.
-
-**Файлы:**
-- `src/components/CreateChannelModal.tsx`
-- `src/components/CreateServerModal.tsx`
-
-**Требует:** Тестирования в Tauri приложении для подтверждения.
-
----
-
-### 3. Расшаривание экрана недоступно ✅
-
-**Проблема:** `navigator.mediaDevices.getDisplayMedia` недоступен в Tauri WebView.
+**Проблема:** `navigator.mediaDevices` недоступен в Tauri WebView.
 
 **Решение:**
-1. Добавлена проверка через Tauri API
-2. Создана Rust команда `check_screen_capture_availability`
-3. Добавлен TypeScript wrapper в `tauri.ts`
-
-**Код:**
-```typescript
-const { desktopAPI } = await import('../services/tauri');
-const isAvailable = await desktopAPI.checkScreenCaptureAvailability();
-```
+1. Добавлена Rust команда `get_microphone_info()` для получения информации о микрофоне
+2. Обновлен TypeScript wrapper `getMicrophoneInfo()`
+3. Обновлен `audio.ts` для использования Tauri API
 
 **Файлы:**
 - `src-tauri/src/commands.rs` - добавлена команда
 - `src-tauri/src/main.rs` - зарегистрирована команда
 - `src/services/tauri.ts` - добавлен wrapper
+- `src/services/audio.ts` - обновлена инициализация
+
+---
+
+### 4. ✅ Отсутствует возможность расшаривать экран
+
+**Проблема:** `navigator.mediaDevices.getDisplayMedia` недоступен в Tauri WebView.
+
+**Решение:**
+1. Добавлена Rust команда `check_screen_capture_availability()`
+2. Обновлен TypeScript wrapper `checkScreenCaptureAvailability()`
+3. Обновлен `VoiceView.tsx` для проверки через Tauri API
+
+**Файлы:**
+- `src-tauri/src/commands.rs` - команда уже была
+- `src/services/tauri.ts` - wrapper уже был
 - `src/components/VoiceView.tsx` - обновлена проверка
 
 ---
 
-### 4. Отсутствует голосовая связь ✅
-
-**Проблема:** `navigator.mediaDevices` недоступен в Tauri WebView.
-
-**Решение:**
-
-#### A. Обновлена конфигурация Tauri
-
-**Файл:** `src-tauri/tauri.conf.json`
-
-```json
-{
-  "permission": {
-    "microphone": true,
-    "camera": false
-  },
-  "security": {
-    "csp": "default-src 'self' data: blob: https: ws: wss:; media-src 'self' blob: data: https: mediastream:; ..."
-  }
-}
-```
-
-#### B. Созданы Rust команды
-
-**Файл:** `src-tauri/src/commands.rs`
-
-```rust
-#[command]
-pub fn check_microphone_availability() -> Result<bool, String> {
-    let host = cpal::default_host();
-    match host.input_devices() {
-        Ok(devices) => Ok(devices.count() > 0),
-        Err(e) => Err(format!("Не удалось получить список устройств: {}", e))
-    }
-}
-
-#[command]
-pub fn get_available_microphones() -> Result<Vec<String>, String> {
-    let host = cpal::default_host();
-    match host.input_devices() {
-        Ok(devices) => {
-            let names: Vec<String> = devices
-                .filter_map(|d| d.name().ok())
-                .collect();
-            Ok(names)
-        }
-        Err(e) => Err(format!("Не удалось получить список устройств: {}", e))
-    }
-}
-```
-
-#### C. Обновлен TypeScript wrapper
-
-**Файл:** `src/services/tauri.ts`
-
-```typescript
-checkMicrophoneAvailability: async (): Promise<boolean> => {
-  if (!isTauri()) {
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  }
-  return invoke<boolean>('check_microphone_availability');
-},
-
-getAvailableMicrophones: async (): Promise<string[]> => {
-  if (!isTauri()) {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices
-      .filter(d => d.kind === 'audioinput')
-      .map(d => d.label || `Microphone ${d.deviceId.slice(0, 8)}`);
-  }
-  return invoke<string[]>('get_available_microphones');
-},
-```
-
-#### D. Обновлен AudioService
-
-**Файл:** `src/services/audio.ts`
-
-```typescript
-if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-  console.warn('[Audio] mediaDevices API not available - trying Tauri API');
-  
-  try {
-    const { desktopAPI } = await import('./tauri');
-    const isAvailable = await desktopAPI.checkMicrophoneAvailability();
-    
-    if (!isAvailable) {
-      console.warn('[Audio] No microphone available via Tauri API');
-      return this.createFallbackStream();
-    }
-  } catch (e) {
-    console.warn('[Audio] Tauri API not available');
-  }
-  
-  return this.createFallbackStream();
-}
-```
-
----
-
-### 5. Режимы P2P/SFU/Гибрид ✅
+### 5. ✅ Режимы P2P/SFU/Гибрид
 
 **Статус:** Уже реализовано в `VoiceView.tsx`.
 
 **Индикатор:** Показывает текущий режим с иконками и подсказками.
 
-**Файл:** `src/components/VoiceView.tsx`
-
 ---
 
 ## 📦 Измененные файлы
 
-### Tauri Backend (Rust)
-- ✅ `src-tauri/tauri.conf.json` - добавлены разрешения и обновлен CSP
-- ✅ `src-tauri/src/commands.rs` - добавлены команды для микрофона
-- ✅ `src-tauri/src/main.rs` - зарегистрированы новые команды
+### GitHub Actions
+- ✅ `.github/workflows/build-test.yml` - исправлено дублирование сборок
 
 ### Frontend (TypeScript)
 - ✅ `src/services/auth.ts` - исправлена проверка доступности сервера
-- ✅ `src/services/tauri.ts` - добавлены методы для микрофона и экрана
+- ✅ `src/services/tauri.ts` - добавлен метод `getMicrophoneInfo()`
 - ✅ `src/services/audio.ts` - обновлена инициализация микрофона
-- ✅ `src/components/VoiceView.tsx` - обновлена проверка расшаривания экрана
+
+### Tauri Backend (Rust)
+- ✅ `src-tauri/src/commands.rs` - добавлена команда `get_microphone_info()`
+- ✅ `src-tauri/src/main.rs` - зарегистрирована новая команда
 
 ---
 
-## 🧪 Тестирование
+## 🧪 Что нужно протестировать
 
-### Что нужно протестировать:
+### 1. Проверка сервера
+- Запустить приложение
+- Убедиться что показывается "Сервер доступен"
+- Проверить что можно зарегистрироваться/войти
 
-1. **Проверка сервера**
-   - Запустить приложение
-   - Убедиться что показывается "Сервер доступен"
-   - Проверить что можно зарегистрироваться/войти
+### 2. Голосовая связь
+- Подключиться к голосовому каналу
+- Проверить что микрофон определяется
+- Проверить логи в консоли:
+  ```
+  [Audio] Microphone info: {available: true, devices: [...], default_device: "..."}
+  ```
 
-2. **Голосовая связь**
-   - Подключиться к голосовому каналу
-   - Проверить что микрофон определяется
-   - Проверить что звук передается
+### 3. Расшаривание экрана
+- Нажать кнопку "Расшаривание экрана"
+- Проверить что показывается правильное сообщение
+- Если доступно - проверить что экран расшаривается
 
-3. **Расшаривание экрана**
-   - Нажать кнопку "Расшаривание экрана"
-   - Проверить что показывается правильное сообщение
-   - Если доступно - проверить что экран расшаривается
+### 4. Режимы P2P/SFU/Гибрид
+- Подключиться к голосовому каналу
+- Проверить что показывается индикатор режима
+- Переключить режим и проверить что индикатор обновляется
 
-4. **Модальные окна**
-   - Создать новый сервер
-   - Создать новый канал
-   - Проверить что верстка правильная
-
-5. **Режимы P2P/SFU/Гибрид**
-   - Подключиться к голосовому каналу
-   - Проверить что показывается индикатор режима
-   - Переключить режим и проверить что индикатор обновляется
+### 5. GitHub Actions
+- Создать pull request
+- Проверить что сборка запускается только один раз
+- Проверить что auto-release работает правильно
 
 ---
 
@@ -245,30 +150,39 @@ cargo tauri build
 - Проверить модальные окна
 - Проверить режимы P2P/SFU/Гибрид
 
-### 3. Исправить оставшиеся проблемы
+### 3. Закоммитить и запушить
 
-- Если голосовая связь не работает -可能需要 использовать нативный Rust API для захвата аудио
-- Если расшаривание экрана не работает - нужно реализовать захват экрана через Rust
+```bash
+git add .
+git commit -m "fix: resolve desktop app issues"
+git push origin main
+```
+
+### 4. Проверить GitHub Actions
+
+- Проверить что сборка запускается только один раз
+- Проверить что auto-release создает релиз
+- Проверить что файлы загружаются в релиз
 
 ---
 
 ## 📊 Итоги
 
 ### Решено:
+- ✅ Дублирование сборок в GitHub Actions
 - ✅ Проверка доступности сервера
-- ✅ Добавлены Rust команды для работы с микрофоном
-- ✅ Обновлена конфигурация Tauri
-- ✅ Добавлены TypeScript wrappers
+- ✅ Добавлена команда для получения информации о микрофоне
 - ✅ Обновлена инициализация микрофона
 - ✅ Обновлена проверка расшаривания экрана
 
 ### Требует тестирования:
 - ⏳ Голосовая связь в Tauri приложении
 - ⏳ Расшаривание экрана в Tauri приложении
-- ⏳ Верстка модальных окон
+- ⏳ GitHub Actions (дублирование сборок)
 
 ### Следующие приоритеты:
 1. Собрать Tauri приложение
-3. Протестировать голосовую связь
-5. Протестировать расшаривание экрана
-7. Исправить оставшиеся проблемы
+2. Протестировать голосовую связь
+3. Протестировать расшаривание экрана
+4. Проверить GitHub Actions
+5. Исправить оставшиеся проблемы

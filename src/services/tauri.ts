@@ -82,6 +82,40 @@ export const desktopAPI = {
   },
 
   /**
+   * Get microphone information
+   */
+  getMicrophoneInfo: async (): Promise<{
+    available: boolean;
+    devices: string[];
+    default_device: string | null;
+  }> => {
+    if (!isTauri()) {
+      // В браузере получаем через navigator.mediaDevices
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioDevices = devices.filter(d => d.kind === 'audioinput');
+        return {
+          available: audioDevices.length > 0,
+          devices: audioDevices.map(d => d.label || `Microphone ${d.deviceId.slice(0, 8)}`),
+          default_device: audioDevices.length > 0 ? (audioDevices[0].label || 'Default') : null
+        };
+      } catch (e) {
+        console.error('[Tauri] Failed to get microphone info:', e);
+        return {
+          available: false,
+          devices: [],
+          default_device: null
+        };
+      }
+    }
+    return invoke<{
+      available: boolean;
+      devices: string[];
+      default_device: string | null;
+    }>('get_microphone_info');
+  },
+
+  /**
    * Get application version
    */
   getVersion: async (): Promise<string> => {

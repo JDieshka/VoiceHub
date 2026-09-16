@@ -48,6 +48,42 @@ pub fn check_screen_capture_availability() -> bool {
     cfg!(target_os = "windows") || cfg!(target_os = "macos") || cfg!(target_os = "linux")
 }
 
+/// Получить информацию о микрофоне
+#[command]
+pub fn get_microphone_info() -> Result<serde_json::Value, String> {
+    let host = cpal::default_host();
+    
+    let mut info = serde_json::json!({
+        "available": false,
+        "devices": [],
+        "default_device": null
+    });
+    
+    // Проверяем наличие устройств захвата
+    match host.input_devices() {
+        Ok(devices) => {
+            let device_list: Vec<String> = devices
+                .filter_map(|d| d.name().ok())
+                .collect();
+            
+            info["available"] = serde_json::json!(!device_list.is_empty());
+            info["devices"] = serde_json::json!(device_list);
+            
+            // Получаем устройство по умолчанию
+            if let Some(default) = host.default_input_device() {
+                if let Ok(name) = default.name() {
+                    info["default_device"] = serde_json::json!(name);
+                }
+            }
+        }
+        Err(e) => {
+            return Err(format!("Не удалось получить список устройств: {}", e));
+        }
+    }
+    
+    Ok(info)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemInfo {
     pub os_name: String,

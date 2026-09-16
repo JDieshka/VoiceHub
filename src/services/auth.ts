@@ -163,23 +163,31 @@ class AuthService {
   async checkServerAvailability(): Promise<boolean> {
     try {
       console.log('[Auth] Checking server availability...');
+      console.log('[Auth] API_BASE:', API_BASE);
       
       // Используем Promise.race для таймаута (совместимо с Tauri WebView)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      const response = await fetch(`${API_BASE}/health`, {
-        method: 'GET',
-        signal: controller.signal,
+      const timeoutPromise = new Promise<Response>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout')), 5000);
       });
       
-      clearTimeout(timeoutId);
+      const fetchPromise = fetch(`${API_BASE}/health`, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache',
+      });
+      
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
       
       const isAvailable = response.ok;
       console.log('[Auth] Server availability:', isAvailable);
+      console.log('[Auth] Response status:', response.status);
       return isAvailable;
     } catch (error) {
       console.error('[Auth] Server not available:', error);
+      console.error('[Auth] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return false;
     }
   }

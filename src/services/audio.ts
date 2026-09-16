@@ -139,14 +139,19 @@ class AudioService {
       // Пробуем использовать Tauri API для проверки доступности
       try {
         const { desktopAPI } = await import('./tauri');
-        const isAvailable = await desktopAPI.checkMicrophoneAvailability();
         
-        if (!isAvailable) {
+        // Получаем детальную информацию о микрофоне
+        const micInfo = await desktopAPI.getMicrophoneInfo();
+        console.log('[Audio] Microphone info:', micInfo);
+        
+        if (!micInfo.available) {
           console.warn('[Audio] No microphone available via Tauri API - creating silent fallback stream');
           return this.createFallbackStream();
         }
         
         console.log('[Audio] Microphone available via Tauri API');
+        console.log('[Audio] Available devices:', micInfo.devices);
+        console.log('[Audio] Default device:', micInfo.default_device);
       } catch (e) {
         console.warn('[Audio] Tauri API not available - creating silent fallback stream');
       }
