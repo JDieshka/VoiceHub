@@ -19,61 +19,26 @@ document.head.appendChild(fontLink);
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(authService.isAuthenticated());
   const [currentView, setCurrentView] = useState<'chats' | 'voice' | 'profile'>('chats');
-  const [modalType, setModalType] = useState<'chat' | 'channel' | null>(null);
+  const [modalType, setModalType] = useState<'chat' | 'channel' | 'server' | null>(null);
   const [userId, setUserId] = useState('');
   const [userName, setUserName] = useState('');
   
   // Состояния для чатов
-  const [chats, setChats] = useState([
-    { id: '1', name: 'AnnaEoglain', lastMessage: 'Сообщение которое' },
-    { id: '2', name: 'AnnaEoglain', lastMessage: 'Сообщение которое' },
-    { id: '3', name: 'AnnaEoglain', lastMessage: 'Сообщение которое' },
-    { id: '4', name: 'AnnaEoglain', lastMessage: 'Сообщение которое' },
-  ]);
-  const [activeChatId, setActiveChatId] = useState<string | null>('1');
+  const [chats, setChats] = useState<Array<{ id: string; name: string; lastMessage: string }>>([]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   
   // Состояния для голосовых чатов
-  const [servers, setServers] = useState([
-    {
-      id: '1',
-      name: 'Сервер 1',
-      availableSlots: 2,
-      totalSlots: 5,
-      rooms: [
-        {
-          id: 'r1',
-          name: 'Комната 1',
-          participants: [
-            { id: 'p1', name: 'JDie-', isMuted: false },
-            { id: 'p2', name: 'Илюша', isMuted: true }
-          ]
-        },
-        { id: 'r2', name: 'Комната 2', participants: [] },
-        { id: 'r3', name: 'Комната 3', participants: [] }
-      ]
-    },
-    {
-      id: '2',
-      name: 'Сервер 2',
-      availableSlots: 0,
-      totalSlots: 5,
-      rooms: []
-    },
-    {
-      id: '3',
-      name: 'Сервер 3',
-      availableSlots: 0,
-      totalSlots: 5,
-      rooms: []
-    },
-    {
-      id: '4',
-      name: 'Сервер 4',
-      availableSlots: 0,
-      totalSlots: 5,
-      rooms: []
-    }
-  ]);
+  const [servers, setServers] = useState<Array<{
+    id: string;
+    name: string;
+    availableSlots: number;
+    totalSlots: number;
+    rooms: Array<{
+      id: string;
+      name: string;
+      participants: Array<{ id: string; name: string; isMuted: boolean }>;
+    }>;
+  }>>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   
   // Пользователь
@@ -136,15 +101,26 @@ function App() {
         lastMessage: ''
       };
       setChats([...chats, newChat]);
-    } else if (modalType === 'channel') {
-      // Добавить канал в первый сервер
-      const updatedServers = [...servers];
-      updatedServers[0].rooms.push({
+    } else if (modalType === 'server') {
+      const newServer = {
         id: Date.now().toString(),
         name: data.name,
-        participants: []
-      });
-      setServers(updatedServers);
+        availableSlots: 5,
+        totalSlots: 5,
+        rooms: []
+      };
+      setServers([...servers, newServer]);
+    } else if (modalType === 'channel') {
+      // Добавить комнату в первый сервер
+      if (servers.length > 0) {
+        const updatedServers = [...servers];
+        updatedServers[0].rooms.push({
+          id: Date.now().toString(),
+          name: data.name,
+          participants: []
+        });
+        setServers(updatedServers);
+      }
     }
   };
 
@@ -191,6 +167,7 @@ function App() {
           activeRoomId={activeRoomId}
           onRoomSelect={handleRoomSelect}
           onCreateChannel={() => setModalType('channel')}
+          onCreateServer={() => setModalType('server')}
           onLeave={handleLeaveRoom}
           userId={userId}
           userName={userName}

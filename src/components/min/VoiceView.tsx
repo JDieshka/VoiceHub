@@ -27,6 +27,7 @@ interface VoiceViewProps {
   activeRoomId: string | null;
   onRoomSelect: (roomId: string) => void;
   onCreateChannel: () => void;
+  onCreateServer: () => void;
   onLeave: () => void;
   userId: string;
   userName: string;
@@ -37,6 +38,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   activeRoomId,
   onRoomSelect,
   onCreateChannel,
+  onCreateServer,
   onLeave,
   userId,
   userName
@@ -168,73 +170,95 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     <div className="view" id="view-voice">
       <aside className="sidebar purple-side">
         <div className="list">
-          {servers.map(server => (
-            <div 
-              key={server.id} 
-              className={`server ${openServers.has(server.id) ? 'open' : ''}`}
-            >
-              <div className="server-head" onClick={() => toggleServer(server.id)}>
-                <span className="avatar a34"></span>
-                <div className="title">
-                  {server.name}
-                  <br/>
-                  <small>Доступно {server.availableSlots}/{server.totalSlots}</small>
-                </div>
-                <svg className="ic" viewBox="0 0 24 24" style={{width:'16px',height:'16px'}}>
-                  <path d="M4 5c0 8 7 15 15 15l1-4-4-1-1 2a13 13 0 0 1-8-8l2-1-1-4z"/>
-                  <path d="M16 4l5 5M21 4l-5 5"/>
-                </svg>
-              </div>
-              {openServers.has(server.id) && (
-                <div className="server-body">
-                  <button className="gear-btn icon-btn">
-                    <svg className="ic" viewBox="0 0 24 24" style={{width:'16px',height:'16px'}}>
-                      <circle cx="12" cy="12" r="3"/>
-                      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>
-                    </svg>
-                  </button>
-                  <div className="rooms">
-                    {server.rooms.map(room => (
-                      <div key={room.id}>
-                        {room.participants.length > 0 ? (
-                          <div className="room-card">
-                            <div className="rtitle">{room.name}</div>
-                            {room.participants.map(participant => (
-                              <div key={participant.id} className="part">
-                                <span className="avatar a16"></span>
-                                {participant.name}
-                                <svg className="ic" viewBox="0 0 24 24">
-                                  <rect x="9" y="3" width="6" height="10" rx="3"/>
-                                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
-                                  {!participant.isMuted && (
-                                    <path d="M4 4l16 16" style={{stroke:'var(--red)'}}/>
-                                  )}
-                                </svg>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <button 
-                            className="room-btn"
-                            onClick={() => onRoomSelect(room.id)}
-                          >
-                            {room.name}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {servers.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', fontSize: '9px', opacity: 0.6 }}>
+              Нет серверов. Нажмите "Создать" чтобы создать новый сервер.
             </div>
-          ))}
+          ) : (
+            servers.map(server => (
+              <div 
+                key={server.id} 
+                className={`server ${openServers.has(server.id) ? 'open' : ''}`}
+              >
+                <div className="server-head" onClick={() => toggleServer(server.id)}>
+                  <span className="avatar a34"></span>
+                  <div className="title">
+                    {server.name}
+                    <br/>
+                    <small>Доступно {server.availableSlots}/{server.totalSlots}</small>
+                  </div>
+                  <svg className="ic" viewBox="0 0 24 24" style={{width:'16px',height:'16px'}}>
+                    <path d="M4 5c0 8 7 15 15 15l1-4-4-1-1 2a13 13 0 0 1-8-8l2-1-1-4z"/>
+                    <path d="M16 4l5 5M21 4l-5 5"/>
+                  </svg>
+                </div>
+                {openServers.has(server.id) && (
+                  <div className="server-body">
+                    <button className="gear-btn icon-btn">
+                      <svg className="ic" viewBox="0 0 24 24" style={{width:'16px',height:'16px'}}>
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>
+                      </svg>
+                    </button>
+                    <div className="rooms">
+                      {server.rooms.length === 0 ? (
+                        <div style={{ padding: '10px', fontSize: '8px', opacity: 0.6 }}>
+                          Нет комнат
+                        </div>
+                      ) : (
+                        server.rooms.map(room => (
+                          <div key={room.id}>
+                            {room.participants.length > 0 ? (
+                              <div className="room-card">
+                                <div className="rtitle">{room.name}</div>
+                                {room.participants.map(participant => (
+                                  <div key={participant.id} className="part">
+                                    <span className="avatar a16"></span>
+                                    {participant.name}
+                                    <svg className="ic" viewBox="0 0 24 24">
+                                      <rect x="9" y="3" width="6" height="10" rx="3"/>
+                                      <path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
+                                      {!participant.isMuted && (
+                                        <path d="M4 4l16 16" style={{stroke:'var(--red)'}}/>
+                                      )}
+                                    </svg>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <button 
+                                className="room-btn"
+                                onClick={() => onRoomSelect(room.id)}
+                              >
+                                {room.name}
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
-        <button className="btn pink side-btn" onClick={onCreateChannel}>
-          Создать
-          <svg className="ic" viewBox="0 0 24 24">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '12px' }}>
+          <button className="btn purple" onClick={onCreateServer} style={{ width: '100%' }}>
+            Создать сервер
+            <svg className="ic" viewBox="0 0 24 24">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </button>
+          {servers.length > 0 && (
+            <button className="btn pink" onClick={onCreateChannel} style={{ width: '100%' }}>
+              Создать комнату
+              <svg className="ic" viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+            </button>
+          )}
+        </div>
       </aside>
 
       <main className="voice-main">

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  type: 'chat' | 'channel';
+  type: 'chat' | 'channel' | 'server';
   onSubmit: (data: any) => void;
 }
 
@@ -20,6 +20,8 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, type, onSubmit })
     
     if (type === 'chat') {
       onSubmit({ name, type: 'chat' });
+    } else if (type === 'server') {
+      onSubmit({ name, type: 'server' });
     } else {
       onSubmit({ 
         name, 
@@ -30,11 +32,35 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, type, onSubmit })
     onClose();
   };
 
+  const getTitle = () => {
+    switch (type) {
+      case 'chat': return 'НОВЫЙ ЧАТ';
+      case 'server': return 'НОВЫЙ СЕРВЕР';
+      case 'channel': return 'СОЗДАТЬ КАНАЛ';
+    }
+  };
+
+  const getLabel = () => {
+    switch (type) {
+      case 'chat': return 'никнейм друга';
+      case 'server': return 'название сервера';
+      case 'channel': return 'название канала';
+    }
+  };
+
+  const getButtonText = () => {
+    switch (type) {
+      case 'chat': return 'Добавить';
+      case 'server': return 'Создать';
+      case 'channel': return 'Создать';
+    }
+  };
+
   return (
     <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="modal-head">
-          <h3>{type === 'chat' ? 'НОВЫЙ ЧАТ' : 'СОЗДАТЬ КАНАЛ'}</h3>
+          <h3>{getTitle()}</h3>
           <button className="icon-btn" onClick={onClose}>
             <svg className="ic" viewBox="0 0 24 24">
               <path d="M6 6l12 12M18 6L6 18"/>
@@ -42,7 +68,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, type, onSubmit })
           </button>
         </div>
         <form onSubmit={handleSubmit}>
-          <label>{type === 'chat' ? 'никнейм друга' : 'название канала'}</label>
+          <label>{getLabel()}</label>
           <input className="field" type="text" name="name" required />
           
           {type === 'channel' && (
@@ -80,7 +106,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, type, onSubmit })
           
           <div className="modal-actions">
             <button className="btn pink" type="submit">
-              {type === 'chat' ? 'Добавить' : 'Создать'}
+              {getButtonText()}
             </button>
             <button className="btn gray" type="button" onClick={onClose}>
               Отмена

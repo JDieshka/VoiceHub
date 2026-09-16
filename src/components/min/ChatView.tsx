@@ -24,19 +24,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
     <div className="view" id="view-chats">
       <aside className="sidebar mint-side">
         <div className="list">
-          {chats.map(chat => (
-            <div 
-              key={chat.id}
-              className={`chat-item ${activeChatId === chat.id ? 'active' : ''}`}
-              onClick={() => onChatSelect(chat.id)}
-            >
-              <span className="avatar a34"></span>
-              <div>
-                <div className="name">{chat.name}</div>
-                <div className="prev">{chat.lastMessage}</div>
-              </div>
+          {chats.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', fontSize: '9px', opacity: 0.6 }}>
+              Нет чатов. Нажмите "Добавить" чтобы создать новый чат.
             </div>
-          ))}
+          ) : (
+            chats.map(chat => (
+              <div 
+                key={chat.id}
+                className={`chat-item ${activeChatId === chat.id ? 'active' : ''}`}
+                onClick={() => onChatSelect(chat.id)}
+              >
+                <span className="avatar a34"></span>
+                <div>
+                  <div className="name">{chat.name}</div>
+                  <div className="prev">{chat.lastMessage || 'Нет сообщений'}</div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
         <button className="btn pink side-btn" onClick={onAddChat}>
           Добавить
