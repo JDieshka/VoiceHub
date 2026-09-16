@@ -192,8 +192,29 @@ go build -o voicehub-server main.go
 if [ $? -eq 0 ]; then
     info "Бинарник успешно собран"
     ls -lh voicehub-server
+    
+    # Проверка что бинарник исполняемый
+    if [ -x voicehub-server ]; then
+        info "Бинарник исполняемый"
+    else
+        warn "Бинарник не исполняемый, исправляю..."
+        chmod +x voicehub-server
+    fi
+    
+    # Проверка что бинарник работает
+    info "Проверка бинарника..."
+    if ./voicehub-server -h >/dev/null 2>&1; then
+        info "Бинарник работает корректно"
+    else
+        warn "Бинарник не прошел проверку, но это может быть нормально"
+    fi
 else
     error "Ошибка компиляции"
+    echo ""
+    echo "Попробуйте выполнить компиляцию вручную:"
+    echo "  cd $PROJECT_ROOT/server"
+    echo "  go build -o voicehub-server main.go"
+    exit 1
 fi
 
 # Шаг 5: Настройка systemd service
@@ -205,6 +226,8 @@ cat > /etc/systemd/system/voicehub.service << EOF
 [Unit]
 Description=VoiceHub Server
 After=network.target postgresql.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -219,8 +242,6 @@ Environment="ALLOWED_ORIGINS=*"
 ExecStart=$PROJECT_ROOT/server/voicehub-server
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=60
-StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
@@ -267,6 +288,28 @@ echo ""
 echo "🚀 Шаг 7: Запуск сервиса"
 echo "-------------------------"
 
+# Проверка что бинарник существует
+if [ ! -f "$PROJECT_ROOT/server/voicehub-server" ]; then
+    error "Бинарник не найден: $PROJECT_ROOT/server/voicehub-server"
+    echo ""
+    echo "Попытка пересборки..."
+    cd "$PROJECT_ROOT/server"
+    go build -o voicehub-server main.go
+    
+    if [ ! -f "voicehub-server" ]; then
+        error "Не удалось собрать бинарник"
+        echo ""
+        echo "Проверьте:"
+        echo "  1. Go установлен: go version"
+        echo "  2. Зависимости загружены: go mod tidy"
+        echo "  3. Попробуйте собрать вручную: go build -o voicehub-server main.go"
+        exit 1
+    fi
+    
+    chmod +x voicehub-server
+    info "Бинарник успешно собран"
+fi
+
 systemctl daemon-reload
 systemctl enable voicehub
 systemctl restart voicehub
@@ -279,6 +322,10 @@ if systemctl is-active --quiet voicehub; then
     info "Сервис успешно запущен"
 else
     error "Сервис не запустился. Проверьте логи: journalctl -u voicehub -n 50"
+    echo ""
+    echo "Попробуйте запустить вручную для диагностики:"
+    echo "  cd $PROJECT_ROOT/server"
+    echo "  ./voicehub-server"
 fi
 
 # Шаг 8: Проверка работы
