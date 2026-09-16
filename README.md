@@ -1,175 +1,85 @@
-# 🌐 MIN Messenger - Универсальное приложение
+# 🎙️ VoiceHub - Универсальный мессенджер
 
-## 🎯 Концепция
-
-**MIN Messenger** - это универсальное приложение-клиент, которое может подключаться к любому серверу VoiceHub. 
-
-Как Discord:
-- ✅ Одно приложение для всех
-- ✅ Пользователь выбирает сервер при входе
-- ✅ Можно подключаться к разным серверам
-- ✅ Каждый может развернуть свой сервер
+**VoiceHub** - это универсальное приложение для голосового общения и трансляции экрана, которое может подключаться к любому серверу.
 
 ---
 
-## 🚀 Для пользователей
+## 🌟 Особенности
 
-### Как начать использовать
+- ✅ **Универсальное приложение** - работает с любым сервером
+- ✅ **Выбор сервера** - пользователь сам выбирает куда подключиться
+- ✅ **Self-hosted** - каждый может развернуть свой сервер
+- ✅ **P2P Mesh** - минимальная задержка для малых групп
+- ✅ **SFU** - масштабируется до 100+ участников
+- ✅ **WebRTC** - прямое соединение между клиентами
+- ✅ **Open Source** - свободное использование
 
-1. **Скачайте приложение** (или откройте веб-версию)
+---
+
+## 🚀 Быстрый старт
+
+### Для пользователей
+
+1. **Откройте приложение** (веб или desktop)
 2. **Введите URL сервера** (получите у администратора)
-   - Пример: `http://31.77.158.177:8080`
-   - Пример: `https://voicehub.example.com`
+   - Пример: `http://your-server:8080`
 3. **Зарегистрируйтесь** на этом сервере
 4. **Начните общаться!**
 
-### Смена сервера
+### Для администраторов
 
-1. Откройте **Профиль**
-2. Нажмите **"Сменить сервер"**
-3. Введите новый URL
-4. Подключитесь к новому серверу
+#### Развертывание на VPS
 
----
-
-## 🛠️ Для администраторов
-
-### Развертывание своего сервера
-
-#### Вариант 1: VPS (рекомендуется)
-
-**1. Арендуйте VPS**
-- Минимум: 1 CPU, 1 GB RAM, 20 GB disk
-- ОС: Ubuntu 22.04
-- Провайдеры: Hetzner, DigitalOcean, AWS, etc.
-
-**2. Подключитесь к серверу**
 ```bash
+# 1. Подключитесь к серверу
 ssh root@your-server-ip
-```
 
-**3. Установите зависимости**
-```bash
-# Go
-wget https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
-tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-source ~/.bashrc
-
-# PostgreSQL
-apt update
-apt install -y postgresql postgresql-contrib
-
-# Node.js
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-```
-
-**4. Клонируйте репозиторий**
-```bash
+# 2. Клонируйте репозиторий
 git clone https://github.com/your-username/voicehub.git
 cd voicehub
+
+# 3. Запустите установку
+chmod +x install.sh
+./install.sh
+
+# 4. Сервер запущен!
+# URL для пользователей: http://your-server-ip:8080
 ```
 
-**5. Настройте базу данных**
+#### Развертывание с Docker
+
 ```bash
-# Создайте пользователя и БД
-sudo -u postgres psql
-CREATE USER voicehub WITH PASSWORD 'your-password';
-CREATE DATABASE voicehub OWNER voicehub;
-\q
-```
+# 1. Клонируйте репозиторий
+git clone https://github.com/your-username/voicehub.git
+cd voicehub
 
-**6. Запустите сервер**
-```bash
-cd server
-export DATABASE_URL="postgres://voicehub:your-password@localhost:5432/voicehub"
-export JWT_SECRET="your-secret-key-min-32-chars"
-go run main.go
-```
-
-**7. Настройте автозапуск (systemd)**
-```bash
-cat > /etc/systemd/system/voicehub.service << EOF
-[Unit]
-Description=VoiceHub Server
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root/voicehub/server
-Environment="DATABASE_URL=postgres://voicehub:your-password@localhost:5432/voicehub"
-Environment="JWT_SECRET=your-secret-key-min-32-chars"
-ExecStart=/usr/local/go/bin/go run main.go
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable voicehub
-systemctl start voicehub
-```
-
-**8. Отдайте URL пользователям**
-```
-http://your-server-ip:8080
-```
-
-#### Вариант 2: Docker
-
-**1. Создайте docker-compose.yml**
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build: ./server
-    ports:
-      - "8080:8080"
-    environment:
-      - DATABASE_URL=postgres://voicehub:password@db:5432/voicehub
-      - JWT_SECRET=your-secret-key
-    depends_on:
-      - db
-  
-  frontend:
-    build: .
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-  
-  db:
-    image: postgres:15
-    environment:
-      - POSTGRES_USER=voicehub
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=voicehub
-    volumes:
-      - postgres_/var/lib/postgresql/data
-
-volumes:
-  postgres_
-```
-
-**2. Запустите**
-```bash
+# 2. Запустите с Docker Compose
 docker-compose up -d
-```
 
-**3. Отдайте URL пользователям**
-```
-http://your-server-ip:3000
+# 3. Сервер запущен!
+# URL для пользователей: http://your-server-ip:8080
 ```
 
 ---
 
-## 📱 Как это работает
+## 📖 Документация
 
-### Архитектура
+### Основные документы
+
+- **[QUICK_START.md](./QUICK_START.md)** - быстрый старт
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - подробная инструкция по развертыванию
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - архитектура проекта
+- **[SERVER_SELECTION.md](./SERVER_SELECTION.md)** - как работает выбор сервера
+
+### Технические документы
+
+- **[P2P_INTEGRATION_COMPLETE.md](./P2P_INTEGRATION_COMPLETE.md)** - интеграция P2P
+- **[FINAL_SUMMARY.md](./FINAL_SUMMARY.md)** - итоговый отчет
+- **[server/SFU_GUIDE.md](./server/SFU_GUIDE.md)** - руководство по SFU
+
+---
+
+## 🏗️ Архитектура
 
 ```
 ┌─────────────────┐
@@ -204,156 +114,162 @@ http://your-server-ip:3000
 └─────────────────┘
 ```
 
-### Поток данных
+---
 
-1. **Пользователь открывает приложение**
-   - Показывается страница выбора сервера
+## 🎯 Режимы работы
 
-2. **Вводит URL сервера**
-   - Приложение проверяет `GET /health`
-   - Если ОК → переход к авторизации
-   - Если ошибка → показывается сообщение
+### P2P Mesh (для малых групп)
 
-3. **Регистрируется/Входит**
-   - Все запросы идут на выбранный сервер
-   - JWT токен сохраняется в localStorage
+**Когда использовать:** 2-6 участников
 
-4. **Использует приложение**
-   - Текстовые чаты через WebSocket
-   - Голосовые чаты через WebRTC P2P
-   - Видео через WebRTC P2P
+**Преимущества:**
+- ✅ Минимальная задержка (прямое соединение)
+- ✅ Нет нагрузки на сервер
+- ✅ Работает даже если сервер недоступен
 
-5. **Меняет сервер**
-   - Профиль → "Сменить сервер"
-   - Возврат к шагу 1
+**Недостатки:**
+- ❌ O(n²) соединений
+- ❌ Не масштабируется
+
+### SFU (для больших групп)
+
+**Когда использовать:** 5+ участников
+
+**Преимущества:**
+- ✅ O(n) соединений
+- ✅ Масштабируется до 100+ участников
+- ✅ Низкая нагрузка на клиенты
+
+**Недостатки:**
+- ❌ Дополнительная задержка (через сервер)
+- ❌ Требует TURN сервер для NAT traversal
 
 ---
 
-## 🔧 Технические детали
+## 🔧 Технологии
 
-### API Endpoints
+### Frontend
+- **React 18** - UI фреймворк
+- **TypeScript** - типизация
+- **Tailwind CSS** - стилизация
+- **WebRTC** - P2P аудио/видео
+- **WebSocket** - сигнализация
 
-**Health Check:**
+### Backend
+- **Go 1.21+** - серверная часть
+- **Pion WebRTC** - SFU сервер
+- **PostgreSQL** - база данных
+- **JWT** - аутентификация
+
+### Desktop
+- **Tauri** - десктопное приложение
+- **Rust** - backend для desktop
+
+---
+
+## 📋 Системные требования
+
+### Сервер
+- **CPU:** 1 core
+- **RAM:** 1 GB (2 GB рекомендуется)
+- **Disk:** 20 GB
+- **OS:** Ubuntu 22.04+
+- **Network:** Порт 8080 открыт
+
+### Клиент
+- **Браузер:** Chrome, Firefox, Edge (последние версии)
+- **Или:** Desktop приложение (Windows, macOS, Linux)
+
+---
+
+## 🚀 Развертывание
+
+### Вариант 1: Автоматическая установка
+
+```bash
+# На сервере
+git clone https://github.com/your-username/voicehub.git
+cd voicehub
+chmod +x install.sh
+./install.sh
 ```
-GET /health
-Response: {"status": "ok", "service": "voicehub-server", "version": "2.0.0"}
+
+### Вариант 2: Docker
+
+```bash
+# На сервере
+git clone https://github.com/your-username/voicehub.git
+cd voicehub
+docker-compose up -d
 ```
 
-**Authentication:**
-```
-POST /api/auth/register
-POST /api/auth/login
-POST /api/auth/refresh
-POST /api/auth/logout
-GET /api/auth/me
-```
+### Вариант 3: Ручная установка
 
-**WebSocket:**
-```
-WS /ws?userId={id}&userName={name}
-```
+Смотрите **[DEPLOYMENT.md](./DEPLOYMENT.md)** для подробной инструкции.
 
-### Хранение данных
+---
 
-**localStorage:**
-- `voicehub-server-url` - URL выбранного сервера
-- `voicehub-access-token` - JWT токен
-- `voicehub-refresh-token` - Refresh токен
-- `voicehub-user` - Данные пользователя
+## 🌐 Использование
 
-### Безопасность
+### Подключение к серверу
+
+1. Откройте приложение
+2. Введите URL сервера (например, `http://your-server:8080`)
+3. Нажмите "ПОДКЛЮЧИТЬСЯ"
+4. Зарегистрируйтесь или войдите
+5. Начните общаться!
+
+### Смена сервера
+
+1. Откройте профиль
+2. Нажмите "Сменить сервер"
+3. Введите новый URL
+4. Подключитесь к новому серверу
+
+---
+
+## 🔒 Безопасность
 
 - ✅ JWT токены для аутентификации
 - ✅ bcrypt для хэширования паролей
-- ✅ HTTPS для продакшена
+- ✅ HTTPS для продакшена (обязательно!)
 - ✅ CORS настройки
 - ✅ Проверка сервера перед подключением
 
 ---
 
-## 📊 Сравнение с аналогами
+## 📊 Производительность
 
-| Функция | Discord | Telegram | MIN Messenger |
-|---------|---------|----------|---------------|
-| Выбор сервера | ✅ | ❌ | ✅ |
-| Свой сервер | ❌ | ❌ | ✅ |
-| P2P аудио | ❌ | ❌ | ✅ |
-| P2P видео | ❌ | ❌ | ✅ |
-| Open Source | ❌ | ❌ | ✅ |
-| Self-hosted | ❌ | ❌ | ✅ |
+### Размер приложения
+- **Desktop:** ~10 MB
+- **Frontend:** ~170 KB (gzip: ~54 KB)
+- **Backend:** ~25 MB
 
----
-
-## 🎯 Преимущества
-
-### Для пользователей
-
-✅ **Свобода выбора** - можно подключиться к любому серверу  
-✅ **Приватность** - можно использовать свой сервер  
-✅ **Контроль** - данные хранятся на вашем сервере  
-✅ **Без рекламы** - open source проект  
-
-### Для администраторов
-
-✅ **Полный контроль** - свой сервер, свои правила  
-✅ **Приватность** - данные пользователей у вас  
-✅ **Кастомизация** - можно менять код  
-✅ **Бесплатно** - open source  
+### Потребление ресурсов
+- **RAM:** ~50-80 MB
+- **CPU:** минимальное
+- **Сеть:** зависит от активности
 
 ---
 
-## 🚀 Быстрый старт
+## 🤝 Вклад
 
-### Для пользователей
-
-1. Откройте приложение
-2. Введите URL сервера (получите у администратора)
-3. Зарегистрируйтесь
-4. Начните общаться!
-
-### Для администраторов
-
-```bash
-# 1. Клонируйте репозиторий
-git clone https://github.com/your-username/voicehub.git
-cd voicehub
-
-# 2. Установите зависимости
-cd server
-go mod download
-
-# 3. Настройте БД
-export DATABASE_URL="postgres://voicehub:password@localhost:5432/voicehub"
-export JWT_SECRET="your-secret-key"
-
-# 4. Запустите сервер
-go run main.go
-
-# 5. Отдайте URL пользователям
-# http://your-server-ip:8080
-```
+Приветствуется! Создайте issue или pull request.
 
 ---
 
-## 📚 Документация
+## 📝 Лицензия
 
-- **SERVER_SELECTION.md** - выбор сервера
-- **UNIVERSAL_CONFIG.md** - универсальная конфигурация
-- **DEPLOY_31.77.158.177.md** - развертывание на конкретном сервере
-- **QUICK_START.md** - быстрый старт
-- **P2P_INTEGRATION_COMPLETE.md** - интеграция P2P
+MIT License - см. файл LICENSE
 
 ---
 
-## 🎉 Итог
+## 🙏 Благодарности
 
-**MIN Messenger** - это:
+- [Pion WebRTC](https://github.com/pion/webrtc) - Go WebRTC библиотека
+- [Tauri](https://tauri.app/) - Desktop фреймворк
+- [React](https://reactjs.org/) - UI фреймворк
 
-✅ Универсальное приложение для любого сервера  
-✅ Пользователь сам выбирает куда подключиться  
-✅ Каждый может развернуть свой сервер  
-✅ Open source и бесплатно  
-✅ P2P для минимальной задержки  
-✅ Приватность и контроль  
+---
 
-**Разверните свой сервер и начните общаться!** 🚀
+**Создано с ❤️ для сообщества**

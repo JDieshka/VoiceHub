@@ -27,7 +27,7 @@
 │                                 │
 │  адрес сервера                  │
 │  ┌───────────────────────────┐ │
-│  │ http://31.77.158.177:8080 │ │
+│  │ http://your-server:8080   │ │
 │  └───────────────────────────┘ │
 │                                 │
 │  [ПОДКЛЮЧИТЬСЯ]                 │
@@ -149,14 +149,14 @@ npm run dev
 ### Пример 2: VPS сервер
 
 ```bash
-# На сервере 31.77.158.177
+# На вашем сервере
 cd /opt/voicehub/server
 export DATABASE_URL="postgres://voicehub:password@localhost:5432/voicehub"
 export JWT_SECRET="my-secret-key"
 go run main.go
 
 # Пользователи подключаются:
-# http://31.77.158.177:8080
+# http://your-server-ip:8080
 ```
 
 ### Пример 3: Несколько серверов
@@ -306,7 +306,7 @@ export const setWebSocketUrl = (url: string) => {
 - **README.md** - основная документация
 - **SERVER_SELECTION.md** - выбор сервера
 - **UNIVERSAL_CONFIG.md** - универсальная конфигурация
-- **DEPLOY_31.77.158.177.md** - развертывание на сервере
+- **DEPLOYMENT.md** - развертывание на сервере
 - **QUICK_START.md** - быстрый старт
 - **P2P_INTEGRATION_COMPLETE.md** - интеграция P2P
 

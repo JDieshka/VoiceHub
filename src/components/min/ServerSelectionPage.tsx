@@ -38,7 +38,7 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
     url = url.replace(/\/$/, '');
 
     if (!validateUrl(url)) {
-      setError('Неверный формат URL. Пример: http://31.77.158.177:8080');
+      setError('Неверный формат URL. Пример: http://your-server:8080');
       return;
     }
 
@@ -106,7 +106,7 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
               setServerUrl(e.target.value);
               setError('');
             }}
-            placeholder="http://31.77.158.177:8080"
+            placeholder="http://your-server:8080"
             required
             autoFocus
           />
@@ -156,8 +156,8 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
         }}>
           <p style={{ marginBottom: '8px', fontWeight: 'bold' }}>Примеры:</p>
           <p>• http://localhost:8080 (локальный сервер)</p>
-          <p>• http://31.77.158.177:8080 (IP адрес)</p>
-          <p>• https://voicehub.example.com (домен)</p>
+          <p>• http://your-server-ip:8080 (IP адрес)</p>
+          <p>• https://your-domain.com (домен)</p>
         </div>
       </div>
     </section>

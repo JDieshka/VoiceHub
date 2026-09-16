@@ -1,323 +1,162 @@
-# 🚀 Руководство по деплою VoiceHub на удалённый сервер
+# 🚀 Развертывание VoiceHub
 
 ## 📋 Обзор
 
-VoiceHub имеет **клиент-серверную архитектуру**:
-- **Клиент** (React/Tauri) — работает у пользователей
-- **Сервер** (Go + PostgreSQL) — работает на вашем VPS
+VoiceHub можно развернуть на любом VPS или выделенном сервере. Пользователи смогут подключаться к вашему серверу через приложение.
 
-Это означает, что вы можете:
-1. Развернуть сервер на удалённом VPS
-2. Дать пользователям доступ через браузер или desktop приложение
-3. Масштабировать независимо клиент и сервер
+---
 
-## 🎯 Сценарии использования
+## 🎯 Требования
 
-### Сценарий 1: Веб-приложение (рекомендуется)
+### Сервер
+- **CPU:** 1 core (2+ рекомендуется)
+- **RAM:** 1 GB (2+ GB рекомендуется)
+- **Disk:** 20 GB
+- **OS:** Ubuntu 22.04+
+- **Network:** Порт 8080 открыт
 
-```
-Пользователь                    Ваш VPS
-    │                              │
-    │  Браузер                     │
-    │  (voicehub.example.com)      │
-    │◄────────────────────────────►│
-    │                              │  Go-сервер
-    │                              │  PostgreSQL
-    │                              │  Nginx
-    │                              │
-```
+### Доступ
+- SSH доступ к серверу
+- Root права или sudo
 
-**Плюсы:**
-- ✅ Не нужно устанавливать приложение
-- ✅ Работает на любом устройстве
-- ✅ Автоматические обновления
-- ✅ Легко масштабировать
+---
 
-**Минусы:**
-- ⚠️ Требует HTTPS (иначе нет доступа к микрофону)
-- ⚠️ Зависит от браузера
+## 🚀 Вариант 1: Автоматическая установка
 
-### Сценарий 2: Desktop приложение
-
-```
-Пользователь                    Ваш VPS
-    │                              │
-    │  Tauri app                   │
-    │  (.exe/.dmg/.AppImage)       │
-    │◄────────────────────────────►│
-    │                              │  Go-сервер
-    │                              │  PostgreSQL
-    │                              │
-```
-
-**Плюсы:**
-- ✅ Нативные функции (трей, горячие клавиши)
-- ✅ Лучшая производительность
-- ✅ Работает без HTTPS (но рекомендуется)
-
-**Минусы:**
-- ⚠️ Нужно распространять бинарники
-- ⚠️ Нужно обновлять вручную
-
-## 🛠️ Пошаговая инструкция: Веб-приложение
-
-### Шаг 1: Арендовать VPS
-
-Рекомендуемые провайдеры:
-- **Hetzner** (€4/мес) — 2 CPU, 4 GB RAM, 40 GB SSD
-- **Timeweb** (₽300/мес) — 1 CPU, 1 GB RAM, 20 GB SSD
-- **DigitalOcean** ($6/мес) — 1 CPU, 1 GB RAM, 25 GB SSD
-- **AWS Lightsail** ($5/мес) — 1 CPU, 1 GB RAM, 40 GB SSD
-
-**Минимальные требования:**
-- CPU: 1 core
-- RAM: 1 GB (2 GB рекомендуется)
-- Disk: 20 GB
-- OS: Ubuntu 22.04 LTS
-
-### Шаг 2: Настроить домен
-
-1. Зарегистрируйте домен (например, на Namecheap, Reg.ru)
-2. Создайте DNS записи:
-   ```
-   A    voicehub.example.com    → IP вашего VPS
-   A    *.voicehub.example.com  → IP вашего VPS (для wildcard SSL)
-   ```
-
-### Шаг 3: Подключиться к VPS
+### Шаг 1: Подключитесь к серверу
 
 ```bash
 ssh root@your-server-ip
 ```
 
-### Шаг 4: Установить зависимости
+### Шаг 2: Клонируйте репозиторий
 
 ```bash
-# Обновить систему
-apt update && apt upgrade -y
+git clone https://github.com/your-username/voicehub.git
+cd voicehub
+```
 
-# Установить Docker
+### Шаг 3: Запустите установку
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+Скрипт автоматически:
+- ✅ Установит Go 1.24+
+- ✅ Установит PostgreSQL
+- ✅ Создаст базу данных
+- ✅ Загрузит зависимости
+- ✅ Соберет backend
+- ✅ Соберет frontend
+- ✅ Настроит systemd service
+- ✅ Настроит firewall
+- ✅ Запустит сервер
+
+### Шаг 4: Готово!
+
+Сервер запущен на `http://your-server-ip:8080`
+
+Отдайте URL пользователям:
+```
+http://your-server-ip:8080
+```
+
+---
+
+## 🐳 Вариант 2: Docker
+
+### Шаг 1: Установите Docker
+
+```bash
 curl -fsSL https://get.docker.com -o get-docker.sh
 sh get-docker.sh
-
-# Установить Docker Compose
-apt install docker-compose-plugin -y
-
-# Установить Certbot (для SSL)
-apt install certbot -y
 ```
 
-### Шаг 5: Загрузить проект
+### Шаг 2: Установите Docker Compose
 
 ```bash
-# Клонировать репозиторий
-git clone https://github.com/yourusername/voicehub.git
+apt-get install docker-compose-plugin
+```
+
+### Шаг 3: Клонируйте репозиторий
+
+```bash
+git clone https://github.com/your-username/voicehub.git
 cd voicehub
-
-# Или загрузить через SCP
-scp -r ./voicehub root@your-server-ip:/root/
 ```
 
-### Шаг 6: Настроить окружение
+### Шаг 4: Запустите
 
 ```bash
-# Создать .env файл
-cp server/.env.example server/.env
-nano server/.env
+docker-compose up -d
 ```
 
-**Обязательно измените:**
-```bash
-# Сгенерируйте случайный ключ
-JWT_SECRET=$(openssl rand -base64 48)
+### Шаг 5: Готово!
 
-# Установите пароль для PostgreSQL
-DATABASE_URL=postgres://voicehub:YourStrongPassword123@postgres:5432/voicehub?sslmode=disable
+Сервер запущен на `http://your-server-ip:8080`
 
-# Укажите ваш домен
-ALLOWED_ORIGINS=https://voicehub.example.com
-```
+---
 
-### Шаг 7: Получить SSL сертификат
+## 🔧 Вариант 3: Ручная установка
+
+### Шаг 1: Установите Go
 
 ```bash
-# Остановить nginx если запущен
-systemctl stop nginx
-
-# Получить сертификат
-certbot certonly --standalone -d voicehub.example.com
-
-# Сертификаты будут в:
-# /etc/letsencrypt/live/voicehub.example.com/fullchain.pem
-# /etc/letsencrypt/live/voicehub.example.com/privkey.pem
+cd /tmp
+wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-### Шаг 8: Настроить TURN сервер (ОБЯЗАТЕЛЬНО!)
-
-Без TURN сервера многие пользователи не смогут подключиться из-за NAT.
+### Шаг 2: Установите PostgreSQL
 
 ```bash
-# Установить coturn
-apt install coturn -y
+apt update
+apt install -y postgresql postgresql-contrib
 
-# Настроить
-nano /etc/turnserver.conf
+# Создайте пользователя и БД
+su - postgres -c "psql -c \"CREATE USER voicehub WITH PASSWORD 'your-password';\""
+su - postgres -c "psql -c \"CREATE DATABASE voicehub OWNER voicehub;\""
+su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE voicehub TO voicehub;\""
 ```
 
-**Добавьте в `/etc/turnserver.conf`:**
-```conf
-listening-port=3478
-fingerprint
-lt-cred-mech
-user=voicehub:YourStrongTurnPassword
-realm=voicehub.example.com
-server-name=voicehub.example.com
-total-quota=100
-bps-capacity=0
-stale-nonce
-no-software-attribute
-no-cli
-```
-
-**Обновите `/etc/default/coturn`:**
-```bash
-TURNSERVER_ENABLED=1
-```
-
-**Запустите coturn:**
-```bash
-systemctl enable coturn
-systemctl start coturn
-```
-
-**Обновите `server/.env`:**
-```bash
-TURN_URL=turn:voicehub.example.com:3478
-TURN_USERNAME=voicehub
-TURN_PASSWORD=YourStrongTurnPassword
-```
-
-### Шаг 9: Настроить Nginx
+### Шаг 3: Установите Node.js
 
 ```bash
-# Установить nginx
-apt install nginx -y
-
-# Создать конфиг
-nano /etc/nginx/sites-available/voicehub
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
 ```
 
-**Добавьте:**
-```nginx
-server {
-    listen 80;
-    server_name voicehub.example.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name voicehub.example.com;
-
-    ssl_certificate /etc/letsencrypt/live/voicehub.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/voicehub.example.com/privkey.pem;
-
-    # Frontend
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Backend API
-    location /api/ {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket
-    location /ws {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    # SFU WebSocket
-    location /sfu {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-**Активируйте конфиг:**
-```bash
-ln -s /etc/nginx/sites-available/voicehub /etc/nginx/sites-enabled/
-nginx -t
-systemctl restart nginx
-```
-
-### Шаг 10: Настроить Firewall
+### Шаг 4: Клонируйте репозиторий
 
 ```bash
-# Установить ufw
-apt install ufw -y
-
-# Разрешить SSH
-ufw allow 22/tcp
-
-# Разрешить HTTP/HTTPS
-ufw allow 80/tcp
-ufw allow 443/tcp
-
-# Разрешить TURN
-ufw allow 3478/tcp
-ufw allow 3478/udp
-
-# Включить firewall
-ufw enable
+git clone https://github.com/your-username/voicehub.git
+cd voicehub
 ```
 
-### Шаг 11: Запустить приложение
+### Шаг 5: Соберите backend
 
 ```bash
-# Собрать frontend
-cd /root/voicehub
+cd server
+go mod download
+go build -o voicehub-server main.go
+```
+
+### Шаг 6: Соберите frontend
+
+```bash
+cd ..
 npm install
 npm run build
-
-# Запустить backend
-cd server
-docker-compose up -d
-
-# Или без Docker:
-go build -o voicehub-server
-./voicehub-server -mode=hybrid
 ```
 
-### Шаг 12: Настроить автозапуск
+### Шаг 7: Создайте systemd service
 
 ```bash
-# Создать systemd service
-nano /etc/systemd/system/voicehub.service
-```
-
-**Добавьте:**
-```ini
+cat > /etc/systemd/system/voicehub.service << EOF
 [Unit]
 Description=VoiceHub Server
 After=network.target postgresql.service
@@ -326,395 +165,260 @@ After=network.target postgresql.service
 Type=simple
 User=root
 WorkingDirectory=/root/voicehub/server
-ExecStart=/root/voicehub/server/voicehub-server -mode=hybrid
+Environment="PATH=/usr/local/go/bin:/usr/bin:/bin"
+Environment="DATABASE_URL=postgres://voicehub:your-password@localhost:5432/voicehub?sslmode=disable"
+Environment="JWT_SECRET=your-secret-key-min-32-chars"
+Environment="PORT=8080"
+Environment="MODE=hybrid"
+Environment="ALLOWED_ORIGINS=*"
+ExecStart=/root/voicehub/server/voicehub-server
 Restart=always
 RestartSec=10
-Environment=DATABASE_URL=postgres://voicehub:YourPassword@localhost:5432/voicehub
-Environment=JWT_SECRET=YourSecretKey
 
 [Install]
 WantedBy=multi-user.target
-```
+EOF
 
-**Включите service:**
-```bash
 systemctl daemon-reload
 systemctl enable voicehub
 systemctl start voicehub
 ```
 
-### Шаг 13: Настроить клиент
+### Шаг 8: Настройте firewall
 
-**Для веб-приложения:**
-
-Создайте файл `src/config.ts`:
-```typescript
-export const config = {
-  apiUrl: 'https://voicehub.example.com',
-  wsUrl: 'wss://voicehub.example.com/ws',
-  sfuUrl: 'wss://voicehub.example.com/sfu',
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { 
-      urls: 'turn:voicehub.example.com:3478',
-      username: 'voicehub',
-      credential: 'YourStrongTurnPassword'
-    }
-  ]
-};
+```bash
+ufw allow 22/tcp
+ufw allow 8080/tcp
+ufw allow 3478/tcp
+ufw allow 3478/udp
+ufw enable
 ```
 
-**Для desktop приложения:**
+---
 
-Обновите `src-tauri/tauri.conf.json`:
-```json
-{
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "http": {
-        "all": true,
-        "scope": ["https://voicehub.example.com/**"]
-      }
+## 🔒 HTTPS (обязательно для продакшена)
+
+### Шаг 1: Получите домен
+
+Зарегистрируйте домен (например, на Namecheap, GoDaddy).
+
+### Шаг 2: Настройте DNS
+
+Создайте A запись:
+```
+voicehub.yourdomain.com → your-server-ip
+```
+
+### Шаг 3: Установите Nginx
+
+```bash
+apt install nginx
+```
+
+### Шаг 4: Получите SSL сертификат
+
+```bash
+apt install certbot python3-certbot-nginx
+certbot --nginx -d voicehub.yourdomain.com
+```
+
+### Шаг 5: Настройте Nginx
+
+```bash
+cat > /etc/nginx/sites-available/voicehub << EOF
+server {
+    listen 443 ssl;
+    server_name voicehub.yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/voicehub.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/voicehub.yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host \$host;
     }
-  }
 }
+
+server {
+    listen 80;
+    server_name voicehub.yourdomain.com;
+    return 301 https://\$server_name\$request_uri;
+}
+EOF
+
+ln -s /etc/nginx/sites-available/voicehub /etc/nginx/sites-enabled/
+nginx -t
+systemctl reload nginx
 ```
 
-И в `src/services/tauri.ts`:
-```typescript
-export const config = {
-  serverUrl: 'https://voicehub.example.com',
-  // ... остальные настройки
-};
-```
+### Шаг 6: Готово!
 
-### Шаг 14: Проверить работу
+Сервер доступен на `https://voicehub.yourdomain.com`
+
+---
+
+## 🎤 TURN сервер (для работы через NAT)
+
+### Шаг 1: Установите coturn
 
 ```bash
-# Проверить backend
-curl https://voicehub.example.com/health
-
-# Должно вернуть:
-# {"status":"ok","service":"voicehub-server","version":"2.0.0"}
-
-# Проверить frontend
-# Откройте https://voicehub.example.com в браузере
+apt install coturn
 ```
 
-## 🖥️ Пошаговая инструкция: Desktop приложение
-
-### Шаг 1: Собрать desktop приложение
-
-**На вашей машине (не на VPS!):**
+### Шаг 2: Настройте coturn
 
 ```bash
-# Установить Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cat > /etc/turnserver.conf << EOF
+listening-port=3478
+tls-listening-port=5349
+listening-ip=0.0.0.0
+relay-ip=0.0.0.0
+external-ip=your-server-ip
 
-# Установить Tauri CLI
-cargo install tauri-cli
+lt-cred-mech
+realm=your-server-ip
 
-# Собрать для Windows
-cargo tauri build --target x86_64-pc-windows-gnu
+user=voicehub:your-turn-password
 
-# Собрать для macOS
-cargo tauri build --target x86_64-apple-darwin
+fingerprint
+no-tlsv1
+no-tlsv1_1
 
-# Собрать для Linux
-cargo tauri build
+max-bps=0
+total-quota=0
+bps-capacity=0
+
+verbose
+log-file=/var/log/turnserver.log
+
+no-daemon
+no-cli
+EOF
 ```
 
-**Результат:**
-- Windows: `src-tauri/target/release/bundle/msi/VoiceHub_2.0.0_x64.msi`
-- macOS: `src-tauri/target/release/bundle/dmg/VoiceHub_2.0.0.dmg`
-- Linux: `src-tauri/target/release/bundle/appimage/VoiceHub_2.0.0_amd64.AppImage`
-
-### Шаг 2: Настроить подключение к серверу
-
-Перед сборкой обновите конфигурацию:
-
-**`src/services/config.ts`:**
-```typescript
-export const config = {
-  apiUrl: 'https://voicehub.example.com',
-  wsUrl: 'wss://voicehub.example.com/ws',
-  sfuUrl: 'wss://voicehub.example.com/sfu',
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { 
-      urls: 'turn:voicehub.example.com:3478',
-      username: 'voicehub',
-      credential: 'YourStrongTurnPassword'
-    }
-  ]
-};
-```
-
-### Шаг 3: Распространить приложение
-
-**Вариант 1: Прямая раздача**
-```bash
-# Загрузите на облако
-scp VoiceHub_2.0.0_x64.msi user@cloud-storage:/path/
-
-# Дайте ссылку пользователям
-# https://cloud-storage.com/VoiceHub_2.0.0_x64.msi
-```
-
-**Вариант 2: GitHub Releases**
-```bash
-# Создайте release на GitHub
-# Загрузите бинарники в release assets
-# Пользователи скачают с GitHub
-```
-
-**Вариант 3: Собственный сайт**
-```html
-<!-- Добавьте на сайт -->
-<a href="/downloads/VoiceHub.exe">Скачать для Windows</a>
-<a href="/downloads/VoiceHub.dmg">Скачать для macOS</a>
-<a href="/downloads/VoiceHub.AppImage">Скачать для Linux</a>
-```
-
-## 🔧 Обслуживание
-
-### Обновление приложения
+### Шаг 3: Запустите coturn
 
 ```bash
-# На VPS
+systemctl enable coturn
+systemctl start coturn
+```
+
+### Шаг 4: Отдайте TURN URL пользователям
+
+```
+turn:your-server-ip:3478
+username: voicehub
+password: your-turn-password
+```
+
+---
+
+## 📊 Мониторинг
+
+### Логи
+
+```bash
+# Backend
+journalctl -u voicehub -f
+
+# PostgreSQL
+tail -f /var/log/postgresql/postgresql-*.log
+
+# Nginx
+tail -f /var/log/nginx/access.log
+tail -f /var/log/nginx/error.log
+```
+
+### Статистика
+
+```bash
+# Использование ресурсов
+htop
+
+# Дисковое пространство
+df -h
+
+# Подключения к БД
+su - postgres -c "psql -d voicehub -c 'SELECT count(*) FROM users;'"
+```
+
+---
+
+## 🔄 Обновление
+
+### Шаг 1: Остановите сервис
+
+```bash
+systemctl stop voicehub
+```
+
+### Шаг 2: Обновите код
+
+```bash
 cd /root/voicehub
 git pull
+```
 
-# Обновить backend
+### Шаг 3: Пересоберите
+
+```bash
 cd server
-go build -o voicehub-server
-systemctl restart voicehub
+go build -o voicehub-server main.go
 
-# Обновить frontend
 cd ..
 npm install
 npm run build
-
-# Nginx автоматически подхватит новые файлы
 ```
 
-### Мониторинг
+### Шаг 4: Запустите
 
 ```bash
-# Логи backend
-journalctl -u voicehub -f
-
-# Логи nginx
-tail -f /var/log/nginx/access.log
-tail -f /var/log/nginx/error.log
-
-# Статистика PostgreSQL
-docker exec voicehub-postgres psql -U voicehub -c "SELECT count(*) FROM users;"
-
-# Использование ресурсов
-htop
-df -h
+systemctl start voicehub
 ```
 
-### Резервное копирование
-
-```bash
-# Создать скрипт бэкапа
-nano /root/backup.sh
-```
-
-**Добавьте:**
-```bash
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/root/backups"
-
-# Бэкап PostgreSQL
-docker exec voicehub-postgres pg_dump -U voicehub voicehub > $BACKUP_DIR/db_$DATE.sql
-
-# Бэкап .env
-cp /root/voicehub/server/.env $BACKUP_DIR/env_$DATE
-
-# Удалить старые бэкапы (оставить последние 7)
-find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
-
-echo "Backup completed: $DATE"
-```
-
-**Добавьте в cron:**
-```bash
-chmod +x /root/backup.sh
-crontab -e
-
-# Добавьте строку (бэкап каждый день в 3:00)
-0 3 * * * /root/backup.sh
-```
-
-### Автоматическое обновление SSL
-
-```bash
-# Certbot автоматически обновляет сертификаты
-# Проверить:
-certbot renew --dry-run
-
-# Добавить в cron (если не добавлено автоматически)
-echo "0 0,12 * * * root certbot renew --quiet" >> /etc/crontab
-```
+---
 
 ## 🐛 Решение проблем
 
-### Проблема: Не работает микрофон
+### Сервер не запускается
 
-**Причина:** Нет HTTPS
-
-**Решение:**
 ```bash
-# Проверить SSL
-curl -I https://voicehub.example.com
+# Проверьте логи
+journalctl -u voicehub -n 50
 
-# Если ошибка, обновить сертификат
-certbot renew
+# Проверьте PostgreSQL
+systemctl status postgresql
+
+# Проверьте порт
+ss -tuln | grep 8080
 ```
 
-### Проблема: Не подключается аудио
+### Не могу подключиться
 
-**Причина:** Нет TURN сервера или заблокированы порты
-
-**Решение:**
 ```bash
-# Проверить TURN
-nc -vz voicehub.example.com 3478
-
-# Если не работает, проверить firewall
+# Проверьте firewall
 ufw status
 
-# Проверить логи coturn
-journalctl -u coturn -f
+# Проверьте что порт открыт
+ufw allow 8080/tcp
 ```
 
-### Проблема: Медленная работа
+### Микрофон не работает
 
-**Причина:** Недостаточно ресурсов или высокая задержка
+- Нужен HTTPS для работы микрофона в браузере
+- Используйте Desktop приложение (Tauri)
 
-**Решение:**
-```bash
-# Проверить использование ресурсов
-htop
+---
 
-# Проверить задержку до сервера
-ping voicehub.example.com
+## 📞 Поддержка
 
-# Если VPS далеко, перенести ближе к пользователям
-```
+- **Документация:** Все в папке проекта
+- **Issues:** GitHub Issues
+- **Discussions:** GitHub Discussions
 
-### Проблема: Пользователи не могут зарегистрироваться
+---
 
-**Причина:** Ошибка в базе данных или CORS
-
-**Решение:**
-```bash
-# Проверить логи backend
-journalctl -u voicehub -f
-
-# Проверить PostgreSQL
-docker logs voicehub-postgres
-
-# Проверить CORS в .env
-cat server/.env | grep ALLOWED_ORIGINS
-```
-
-## 📊 Масштабирование
-
-### Вертикальное масштабирование
-
-Увеличьте ресурсы VPS:
-- Больше CPU
-- Больше RAM
-- Быстрее диск (SSD → NVMe)
-
-### Горизонтальное масштабирование
-
-**Для backend:**
-```bash
-# Запустить несколько экземпляров
-systemctl start voicehub@1
-systemctl start voicehub@2
-systemctl start voicehub@3
-
-# Настроить load balancer (Nginx/HAProxy)
-```
-
-**Для PostgreSQL:**
-```bash
-# Репликация
-# Master-Slave setup
-# Или использовать managed PostgreSQL (AWS RDS, etc)
-```
-
-**Для WebRTC:**
-```bash
-# Несколько SFU серверов
-# Load balancer для WebSocket соединений
-# Или использовать облачные SFU (Twilio, Agora)
-```
-
-## 💰 Стоимость
-
-### Минимальная конфигурация
-
-| Компонент | Провайдер | Стоимость/мес |
-|-----------|-----------|---------------|
-| VPS (1 CPU, 1 GB) | Hetzner | €4 |
-| Домен | Namecheap | $10/год |
-| SSL | Let's Encrypt | Бесплатно |
-| **Итого** | | **~€5/мес** |
-
-### Рекомендуемая конфигурация (до 100 пользователей)
-
-| Компонент | Провайдер | Стоимость/мес |
-|-----------|-----------|---------------|
-| VPS (2 CPU, 4 GB) | Hetzner | €8 |
-| Домен | Namecheap | $10/год |
-| SSL | Let's Encrypt | Бесплатно |
-| **Итого** | | **~€9/мес** |
-
-### Для больших нагрузок (1000+ пользователей)
-
-| Компонент | Провайдер | Стоимость/мес |
-|-----------|-----------|---------------|
-| VPS (4 CPU, 8 GB) | Hetzner | €16 |
-| Managed PostgreSQL | AWS RDS | $15 |
-| TURN сервер | coturn (self-hosted) | €0 |
-| CDN | Cloudflare | $20 |
-| **Итого** | | **~€50/мес** |
-
-## 📚 Дополнительные ресурсы
-
-- [Docker документация](https://docs.docker.com/)
-- [Nginx документация](https://nginx.org/en/docs/)
-- [Let's Encrypt](https://letsencrypt.org/)
-- [Coturn TURN сервер](https://github.com/coturn/coturn)
-- [PostgreSQL документация](https://www.postgresql.org/docs/)
-
-## ✅ Чек-лист перед запуском
-
-- [ ] VPS арендован и настроен
-- [ ] Домен зарегистрирован и DNS настроены
-- [ ] SSL сертификат получен
-- [ ] TURN сервер установлен и работает
-- [ ] Firewall настроен (22, 80, 443, 3478)
-- [ ] PostgreSQL запущен и доступен
-- [ ] Backend запущен и отвечает на `/health`
-- [ ] Frontend собран и доступен через Nginx
-- [ ] Клиент настроен на правильный URL сервера
-- [ ] Регистрация работает
-- [ ] Логин работает
-- [ ] Голосовые каналы работают
-- [ ] Трансляция экрана работает
-- [ ] Бэкапы настроены
-- [ ] Мониторинг настроен
-
-## 🎉 Готово!
-
-Теперь ваше приложение VoiceHub работает на удалённом сервере и доступно пользователям через интернет!
+**Готово! Ваш сервер VoiceHub развернут!** 🚀

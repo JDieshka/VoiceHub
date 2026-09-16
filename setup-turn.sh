@@ -1,16 +1,26 @@
 #!/bin/bash
 
-# Скрипт настройки TURN сервера на 31.77.158.177
-# Использование: ./setup-turn.sh
+# Универсальный скрипт настройки TURN сервера
+# Использование: ./setup-turn.sh <SERVER_IP>
+# Пример: ./setup-turn.sh 192.168.1.100
 
 set -e
 
-SERVER_IP="31.77.158.177"
-SERVER_USER="root"
+# Проверка аргументов
+if [ -z "$1" ]; then
+    echo "❌ Укажите IP адрес сервера!"
+    echo "Использование: ./setup-turn.sh <SERVER_IP>"
+    echo "Пример: ./setup-turn.sh 192.168.1.100"
+    exit 1
+fi
+
+SERVER_IP=$1
+SERVER_USER=${2:-root}
 TURN_USERNAME="voicehub"
 TURN_PASSWORD="VoiceHub2024TurnPass123"
 
 echo "🔧 Настройка TURN сервера на $SERVER_IP"
+echo "========================================="
 echo ""
 
 # Установка coturn

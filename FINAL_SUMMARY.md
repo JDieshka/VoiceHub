@@ -65,7 +65,7 @@ cd server
 go run main.go
 ```
 
-Сервер запустится на `http://31.77.158.177:8080`
+Сервер запустится на `http://your-server-ip:8080`
 
 ### 2. Запустить фронтенд
 
@@ -217,7 +217,7 @@ websocketService.sendICECandidate(to: string, candidate: RTCIceCandidate)
 ### Проблема: Не подключается к серверу
 
 **Решение:**
-1. Проверьте что сервер запущен: `http://31.77.158.177:8080/health`
+1. Проверьте что сервер запущен: `http://your-server-ip:8080/health`
 2. Проверьте firewall
 3. Проверьте логи сервера
 

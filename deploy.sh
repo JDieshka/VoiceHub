@@ -1,15 +1,25 @@
 #!/bin/bash
 
-# Скрипт деплоя VoiceHub на сервер 31.77.158.177
-# Использование: ./deploy.sh
+# Универсальный скрипт деплоя VoiceHub
+# Использование: ./deploy.sh [SERVER_IP]
+# Пример: ./deploy.sh 192.168.1.100
 
 set -e
 
-SERVER_IP="31.77.158.177"
-SERVER_USER="root"
+# Проверка аргументов
+if [ -z "$1" ]; then
+    echo "❌ Укажите IP адрес сервера!"
+    echo "Использование: ./deploy.sh <SERVER_IP>"
+    echo "Пример: ./deploy.sh 192.168.1.100"
+    exit 1
+fi
+
+SERVER_IP=$1
+SERVER_USER=${2:-root}
 PROJECT_DIR="/opt/voicehub"
 
 echo "🚀 Деплой VoiceHub на $SERVER_IP"
+echo "================================"
 echo ""
 
 # Проверка SSH подключения
@@ -29,7 +39,7 @@ echo ""
 echo "📁 Создание директории проекта..."
 ssh $SERVER_USER@$SERVER_IP "mkdir -p $PROJECT_DIR"
 
-# Копирование файлов с помощью tar + ssh (быстрее и надежнее чем scp)
+# Копирование файлов с помощью tar + ssh
 echo "📤 Копирование файлов..."
 tar czf - \
     --exclude='node_modules' \
@@ -70,9 +80,9 @@ if ! command -v psql &> /dev/null; then
     systemctl enable postgresql
     
     # Создание базы данных
-    sudo -u postgres psql -c "CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';" || true
-    sudo -u postgres psql -c "CREATE DATABASE voicehub OWNER voicehub;" || true
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE voicehub TO voicehub;" || true
+    su - postgres -c "psql -c \"CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';\"" 2>/dev/null || true
+    su - postgres -c "psql -c \"CREATE DATABASE voicehub OWNER voicehub;\"" 2>/dev/null || true
+    su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE voicehub TO voicehub;\"" 2>/dev/null || true
 fi
 
 # Установка Node.js если не установлен
