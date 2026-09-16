@@ -29,28 +29,61 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
     }
   };
 
+  const normalizeUrl = (input: string): string => {
+    let url = input.trim();
+    
+    // Убираем trailing slash
+    url = url.replace(/\/$/, '');
+    
+    // Если уже есть протокол - возвращаем как есть
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    
+    // Определяем тип ввода
+    const isIPAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(url);
+    const isIPWithPort = /^(\d{1,3}\.){3}\d{1,3}:\d+$/.test(url);
+    const isDomain = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*(\.[a-zA-Z]{2,})+$/.test(url);
+    const isDomainWithPort = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*(\.[a-zA-Z]{2,})+:\d+$/.test(url);
+    
+    // Если это IP или домен без порта - добавляем порт 8080
+    if (isIPAddress || isDomain) {
+      url = url + ':8080';
+    }
+    
+    // Добавляем протокол
+    // Для доменов используем https, для IP - http
+    if (isDomain || isDomainWithPort) {
+      url = 'https://' + url;
+    } else {
+      url = 'http://' + url;
+    }
+    
+    return url;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    let url = serverUrl.trim();
-    
-    // Добавляем http:// если не указан протокол
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'http://' + url;
+    if (!serverUrl.trim()) {
+      setError('Введите адрес сервера');
+      return;
     }
 
-    // Убираем trailing slash
-    url = url.replace(/\/$/, '');
+    // Нормализуем URL
+    const url = normalizeUrl(serverUrl);
 
     if (!validateUrl(url)) {
-      setError('Неверный формат URL. Пример: http://your-server:8080');
+      setError('Неверный формат. Примеры: 192.168.1.100, voicehub.com, http://server:8080');
       return;
     }
 
     setIsChecking(true);
 
     try {
+      console.log('[ServerSelection] Input:', serverUrl);
+      console.log('[ServerSelection] Normalized URL:', url);
       console.log('[ServerSelection] Checking server:', `${url}/health`);
       console.log('[ServerSelection] Is Tauri:', isTauri());
 
@@ -156,7 +189,7 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
               setServerUrl(e.target.value);
               setError('');
             }}
-            placeholder="http://your-server:8080"
+            placeholder="192.168.1.100 или voicehub.com"
             required
             autoFocus
           />
@@ -206,20 +239,18 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
           lineHeight: '1.6'
         }}>
           <p style={{ marginBottom: '8px', fontWeight: 'bold' }}>Примеры:</p>
-          <p>• http://localhost:8080 (локальный сервер)</p>
-          <p>• http://your-server-ip:8080 (IP адрес)</p>
-          <p>• https://your-domain.com (домен)</p>
+          <p>• 192.168.1.100 (IP → http://192.168.1.100:8080)</p>
+          <p>• voicehub.com (домен → https://voicehub.com:8080)</p>
+          <p>• localhost (локально → http://localhost:8080)</p>
+          <p>• http://server:9000 (полный URL с портом)</p>
           <p style={{ marginTop: '10px', color: '#666' }}>
-            💡 Если не подключается, проверьте:
+            💡 Порт 8080 добавляется автоматически
           </p>
           <p style={{ color: '#666' }}>
-            • Сервер запущен на указанном адресе
+            💡 Для доменов используется HTTPS
           </p>
           <p style={{ color: '#666' }}>
-            • Порт 8080 открыт в firewall
-          </p>
-          <p style={{ color: '#666' }}>
-            • Откройте консоль браузера (F12) для подробностей
+            💡 Для IP адресов используется HTTP
           </p>
         </div>
       </div>
