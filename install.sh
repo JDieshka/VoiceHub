@@ -235,7 +235,21 @@ if [ ! -f "go.mod" ]; then
 fi
 
 # Загрузка зависимостей
-info "Загрузка зависимостей Go (это может занять 2-3 минуты)..."
+info "Обновление go.sum и загрузка зависимостей Go (это может занять 2-3 минуты)..."
+
+# Выполняем go mod tidy для обновления go.sum
+if ! go mod tidy; then
+    error "Не удалось обновить go.sum"
+    echo ""
+    echo "Попробуйте вручную:"
+    echo "  cd server"
+    echo "  go mod tidy"
+    exit 1
+fi
+
+info "go.sum обновлен"
+
+# Загружаем зависимости
 if ! go mod download; then
     error "Не удалось загрузить зависимости Go"
     echo ""
