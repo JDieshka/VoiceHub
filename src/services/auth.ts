@@ -163,10 +163,17 @@ class AuthService {
   async checkServerAvailability(): Promise<boolean> {
     try {
       console.log('[Auth] Checking server availability...');
+      
+      // Используем Promise.race для таймаута (совместимо с Tauri WebView)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       const response = await fetch(`${API_BASE}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000), // 5 seconds timeout
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
       
       const isAvailable = response.ok;
       console.log('[Auth] Server availability:', isAvailable);

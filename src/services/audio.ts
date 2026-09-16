@@ -134,7 +134,23 @@ class AudioService {
 
     // Проверка доступности mediaDevices
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.warn('[Audio] mediaDevices API not available - creating silent fallback stream');
+      console.warn('[Audio] mediaDevices API not available - trying Tauri API');
+      
+      // Пробуем использовать Tauri API для проверки доступности
+      try {
+        const { desktopAPI } = await import('./tauri');
+        const isAvailable = await desktopAPI.checkMicrophoneAvailability();
+        
+        if (!isAvailable) {
+          console.warn('[Audio] No microphone available via Tauri API - creating silent fallback stream');
+          return this.createFallbackStream();
+        }
+        
+        console.log('[Audio] Microphone available via Tauri API');
+      } catch (e) {
+        console.warn('[Audio] Tauri API not available - creating silent fallback stream');
+      }
+      
       // Создаем silent fallback stream для Tauri когда mediaDevices недоступен
       return this.createFallbackStream();
     }

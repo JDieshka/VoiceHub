@@ -41,6 +41,47 @@ export const desktopAPI = {
   isDesktop: isTauri,
 
   /**
+   * Check if microphone is available
+   */
+  checkMicrophoneAvailability: async (): Promise<boolean> => {
+    if (!isTauri()) {
+      // В браузере проверяем через navigator.mediaDevices
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    }
+    return invoke<boolean>('check_microphone_availability');
+  },
+
+  /**
+   * Get list of available microphones
+   */
+  getAvailableMicrophones: async (): Promise<string[]> => {
+    if (!isTauri()) {
+      // В браузере получаем через navigator.mediaDevices
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices
+          .filter(d => d.kind === 'audioinput')
+          .map(d => d.label || `Microphone ${d.deviceId.slice(0, 8)}`);
+      } catch (e) {
+        console.error('[Tauri] Failed to get microphones:', e);
+        return [];
+      }
+    }
+    return invoke<string[]>('get_available_microphones');
+  },
+
+  /**
+   * Check if screen capture is available
+   */
+  checkScreenCaptureAvailability: async (): Promise<boolean> => {
+    if (!isTauri()) {
+      // В браузере проверяем через navigator.mediaDevices.getDisplayMedia
+      return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+    }
+    return invoke<boolean>('check_screen_capture_availability');
+  },
+
+  /**
    * Get application version
    */
   getVersion: async (): Promise<string> => {
@@ -181,7 +222,7 @@ export const desktopAPI = {
   /**
    * Listen to native notifications
    */
-  onNativeNotification: (handler: (data: { title: string; body: string }) => void) => {
+  onNativeNotification: (handler: (payload: { title: string; body: string }) => void) => {
     return listen('native-notification', handler);
   },
 };

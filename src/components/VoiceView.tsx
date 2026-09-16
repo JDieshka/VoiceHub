@@ -110,9 +110,28 @@ const VoiceView: React.FC<VoiceViewProps> = ({
     try {
       // Проверка доступности getDisplayMedia
       if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        console.error('[VoiceView] getDisplayMedia API not available');
-        alert('Расшаривание экрана недоступно в этом окружении');
-        return;
+        console.warn('[VoiceView] getDisplayMedia API not available - checking Tauri API');
+        
+        // Пробуем использовать Tauri API для проверки доступности
+        try {
+          const { desktopAPI } = await import('../services/tauri');
+          const isAvailable = await desktopAPI.checkScreenCaptureAvailability();
+          
+          if (!isAvailable) {
+            console.error('[VoiceView] Screen capture not available via Tauri API');
+            alert('Расшаривание экрана недоступно в этом окружении');
+            return;
+          }
+          
+          console.log('[VoiceView] Screen capture available via Tauri API');
+          // TODO: Implement screen capture via Tauri API
+          alert('Расшаривание экрана через Tauri API пока не реализовано. Используйте веб-версию.');
+          return;
+        } catch (e) {
+          console.error('[VoiceView] Tauri API not available');
+          alert('Расшаривание экрана недоступно в этом окружении');
+          return;
+        }
       }
 
       await onStartStream();

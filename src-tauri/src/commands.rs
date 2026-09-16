@@ -5,6 +5,49 @@ use sysinfo::System;
 use auto_launch::AutoLaunchBuilder;
 use cpal::traits::{HostTrait, DeviceTrait};
 
+/// Проверить доступность микрофона
+#[command]
+pub fn check_microphone_availability() -> Result<bool, String> {
+    let host = cpal::default_host();
+    
+    // Проверяем наличие устройств захвата
+    match host.input_devices() {
+        Ok(devices) => {
+            let count = devices.count();
+            Ok(count > 0)
+        }
+        Err(e) => {
+            Err(format!("Не удалось получить список устройств: {}", e))
+        }
+    }
+}
+
+/// Получить список доступных микрофонов
+#[command]
+pub fn get_available_microphones() -> Result<Vec<String>, String> {
+    let host = cpal::default_host();
+    
+    match host.input_devices() {
+        Ok(devices) => {
+            let names: Vec<String> = devices
+                .filter_map(|d| d.name().ok())
+                .collect();
+            Ok(names)
+        }
+        Err(e) => {
+            Err(format!("Не удалось получить список устройств: {}", e))
+        }
+    }
+}
+
+/// Проверить доступность захвата экрана
+#[command]
+pub fn check_screen_capture_availability() -> bool {
+    // В Windows захват экрана доступен через Desktop Duplication API
+    // или через DXGI
+    cfg!(target_os = "windows") || cfg!(target_os = "macos") || cfg!(target_os = "linux")
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemInfo {
     pub os_name: String,
