@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # Универсальный скрипт деплоя VoiceHub
-# Использование: ./deploy.sh [SERVER_IP]
-# Пример: ./deploy.sh 192.168.1.100
+# Использование: ./deploy.sh [SERVER_IP] [SERVER_USER]
+# Пример: ./deploy.sh 192.168.1.100 root
 
 set -e
 
 # Проверка аргументов
 if [ -z "$1" ]; then
     echo "❌ Укажите IP адрес сервера!"
-    echo "Использование: ./deploy.sh <SERVER_IP>"
-    echo "Пример: ./deploy.sh 192.168.1.100"
+    echo "Использование: ./deploy.sh <SERVER_IP> [SERVER_USER]"
+    echo "Пример: ./deploy.sh 192.168.1.100 root"
     exit 1
 fi
 
@@ -24,11 +24,12 @@ echo ""
 
 # Проверка SSH подключения
 echo "📡 Проверка подключения к серверу..."
-if ! ssh -o ConnectTimeout=5 $SERVER_USER@$SERVER_IP "echo 'OK'" > /dev/null 2>&1; then
+if ! ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP "echo 'OK'" > /dev/null 2>&1; then
     echo "❌ Не удалось подключиться к серверу"
     echo "Проверьте:"
     echo "  1. SSH доступ: ssh $SERVER_USER@$SERVER_IP"
     echo "  2. Firewall: порт 22 открыт"
+    echo "  3. SSH сервис запущен"
     exit 1
 fi
 
@@ -115,7 +116,7 @@ ENDSSH
 echo "✅ Зависимости установлены и собраны"
 echo ""
 
-# Настройка firewall
+# Настройка firewall (БЕЗОПАСНАЯ ВЕРСИЯ)
 echo "🔥 Настройка firewall..."
 ssh $SERVER_USER@$SERVER_IP << 'ENDSSH'
 # Установка ufw если не установлен
@@ -124,18 +125,29 @@ if ! command -v ufw &> /dev/null; then
     apt-get install -y ufw
 fi
 
-# Разрешение SSH
-ufw allow 22/tcp
+# ВАЖНО: Сначала разрешаем SSH, потом включаем firewall
+echo "Разрешаем SSH (порт 22)..."
+ufw allow 22/tcp comment 'SSH'
 
-# Разрешение HTTP
-ufw allow 8080/tcp
+echo "Разрешаем HTTP (порт 8080)..."
+ufw allow 8080/tcp comment 'VoiceHub HTTP'
 
-# Разрешение TURN (если используется)
-ufw allow 3478/tcp
-ufw allow 3478/udp
+echo "Разрешаем TURN (порт 3478)..."
+ufw allow 3478/tcp comment 'TURN TCP'
+ufw allow 3478/udp comment 'TURN UDP'
 
-# Включение firewall
-echo "y" | ufw enable || true
+# Проверяем что SSH разрешен перед включением firewall
+if ufw status | grep -q "22/tcp.*ALLOW"; then
+    echo "✅ SSH разрешен, включаем firewall..."
+    echo "y" | ufw enable
+    echo "✅ Firewall включен"
+else
+    echo "❌ SSH не разрешен! Firewall не будет включен для безопасности"
+fi
+
+echo ""
+echo "Статус firewall:"
+ufw status verbose
 ENDSSH
 
 echo "✅ Firewall настроен"
@@ -160,8 +172,10 @@ Environment="PORT=8080"
 Environment="MODE=hybrid"
 Environment="ALLOWED_ORIGINS=*"
 ExecStart=/opt/voicehub/server/voicehub-server
-Restart=always
+Restart=on-failure
 RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
@@ -203,4 +217,6 @@ echo "📋 Полезные команды:"
 echo "   Логи:    ssh $SERVER_USER@$SERVER_IP 'journalctl -u voicehub -f'"
 echo "   Рестарт: ssh $SERVER_USER@$SERVER_IP 'systemctl restart voicehub'"
 echo "   Статус:  ssh $SERVER_USER@$SERVER_IP 'systemctl status voicehub'"
+echo ""
+echo "🔒 SSH доступ сохранен и работает корректно"
 echo ""

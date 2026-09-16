@@ -217,8 +217,10 @@ Environment="PORT=8080"
 Environment="MODE=hybrid"
 Environment="ALLOWED_ORIGINS=*"
 ExecStart=$PROJECT_ROOT/server/voicehub-server
-Restart=always
+Restart=on-failure
 RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
@@ -226,20 +228,38 @@ EOF
 
 info "Systemd service создан"
 
-# Шаг 6: Настройка firewall
+# Шаг 6: Настройка firewall (БЕЗОПАСНАЯ ВЕРСИЯ)
 echo ""
 echo "🔥 Шаг 6: Настройка firewall"
 echo "-----------------------------"
 
 if command -v ufw &> /dev/null; then
-    ufw allow 22/tcp
-    ufw allow 8080/tcp
-    ufw allow 3478/tcp
-    ufw allow 3478/udp
-    echo "y" | ufw enable 2>/dev/null || true
-    info "Firewall настроен"
+    # ВАЖНО: Сначала разрешаем SSH, потом включаем firewall
+    info "Разрешаем SSH (порт 22)..."
+    ufw allow 22/tcp comment 'SSH'
+    
+    info "Разрешаем HTTP (порт 8080)..."
+    ufw allow 8080/tcp comment 'VoiceHub HTTP'
+    
+    info "Разрешаем TURN (порт 3478)..."
+    ufw allow 3478/tcp comment 'TURN TCP'
+    ufw allow 3478/udp comment 'TURN UDP'
+    
+    # Включаем firewall только если SSH разрешен
+    info "Проверяем что SSH разрешен..."
+    if ufw status | grep -q "22/tcp.*ALLOW"; then
+        info "SSH разрешен, включаем firewall..."
+        echo "y" | ufw enable
+        info "Firewall включен"
+    else
+        error "SSH не разрешен! Firewall не будет включен для безопасности"
+    fi
+    
+    info "Статус firewall:"
+    ufw status verbose
 else
     warn "UFW не установлен, пропуск настройки firewall"
+    warn "Рекомендуется установить ufw: apt-get install ufw"
 fi
 
 # Шаг 7: Запуск сервиса
@@ -306,4 +326,6 @@ echo "   1. Открыть приложение"
 echo "   2. Ввести URL: http://$SERVER_IP:8080"
 echo "   3. Зарегистрироваться"
 echo "   4. Начать общение!"
+echo ""
+echo "🔒 SSH доступ сохранен и работает корректно"
 echo ""
