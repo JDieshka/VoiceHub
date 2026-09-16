@@ -140,9 +140,54 @@ fi
 
 # Создаем базу данных и пользователя
 info "Настройка базы данных..."
-su - postgres -c "psql -c \"CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';\"" 2>/dev/null || warn "Пользователь уже существует"
-su - postgres -c "psql -c \"CREATE DATABASE voicehub OWNER voicehub;\"" 2>/dev/null || warn "База данных уже существует"
-su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE voicehub TO voicehub;\"" 2>/dev/null
+
+# Проверяем существует ли пользователь
+if su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='voicehub'\"" | grep -q 1; then
+    warn "Пользователь voicehub уже существует"
+    
+    if confirm "Удалить и пересоздать пользователя voicehub?"; then
+        info "Удаление старого пользователя..."
+        su - postgres -c "psql -c \"DROP USER IF EXISTS voicehub;\"" || error "Не удалось удалить пользователя"
+        
+        info "Создание пользователя..."
+        su - postgres -c "psql -c \"CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';\"" || error "Не удалось создать пользователя"
+        info "Пользователь пересоздан"
+    else
+        info "Пользователь оставлен"
+    fi
+else
+    info "Создание пользователя voicehub..."
+    su - postgres -c "psql -c \"CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';\"" || error "Не удалось создать пользователя"
+    info "Пользователь создан"
+fi
+
+# Проверяем существует ли БД
+if su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='voicehub'\"" | grep -q 1; then
+    warn "База данных voicehub уже существует"
+    
+    if confirm "Удалить и пересоздать базу данных voicehub?"; then
+        info "Закрытие подключений к БД..."
+        su - postgres -c "psql -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='voicehub';\"" 2>/dev/null || true
+        
+        info "Удаление старой БД..."
+        su - postgres -c "psql -c \"DROP DATABASE IF EXISTS voicehub;\"" || error "Не удалось удалить БД"
+        
+        info "Создание новой БД..."
+        su - postgres -c "psql -c \"CREATE DATABASE voicehub OWNER voicehub;\"" || error "Не удалось создать БД"
+        info "База данных пересоздана"
+    else
+        info "База данных оставлена"
+    fi
+else
+    info "Создание базы данных voicehub..."
+    su - postgres -c "psql -c \"CREATE DATABASE voicehub OWNER voicehub;\"" || error "Не удалось создать БД"
+    info "База данных создана"
+fi
+
+# Предоставляем привилегии
+info "Настройка привилегий..."
+su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE voicehub TO voicehub;\"" || warn "Не удалось предоставить привилегии"
+
 info "База данных настроена"
 echo ""
 

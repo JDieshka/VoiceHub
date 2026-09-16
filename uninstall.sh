@@ -232,16 +232,30 @@ if command -v psql &> /dev/null; then
         if confirm "Удалить базу данных voicehub и пользователя voicehub?"; then
             info "Удаление базы данных..."
             
-            # Остановка PostgreSQL
-            systemctl stop postgresql 2>/dev/null || true
+            # Убедимся что PostgreSQL запущен
+            if ! systemctl is-active --quiet postgresql; then
+                info "Запуск PostgreSQL для удаления БД..."
+                systemctl start postgresql
+                sleep 2
+            fi
+            
+            # Удаление подключений к БД
+            info "Закрытие подключений к БД..."
+            su - postgres -c "psql -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='voicehub';\"" 2>/dev/null || true
             
             # Удаление БД и пользователя
-            su - postgres -c "psql -c \"DROP DATABASE IF EXISTS voicehub;\"" 2>/dev/null || true
-            su - postgres -c "psql -c \"DROP USER IF EXISTS voicehub;\"" 2>/dev/null || true
+            info "Удаление базы данных voicehub..."
+            su - postgres -c "psql -c \"DROP DATABASE IF EXISTS voicehub;\"" || warn "Не удалось удалить БД"
+            
+            info "Удаление пользователя voicehub..."
+            su - postgres -c "psql -c \"DROP USER IF EXISTS voicehub;\"" || warn "Не удалось удалить пользователя"
             
             info "База данных удалена"
             
             if confirm "Удалить PostgreSQL полностью?"; then
+                info "Остановка PostgreSQL..."
+                systemctl stop postgresql 2>/dev/null || true
+                
                 info "Удаление PostgreSQL..."
                 apt-get remove -y postgresql postgresql-contrib 2>/dev/null || true
                 apt-get autoremove -y 2>/dev/null || true
@@ -249,7 +263,6 @@ if command -v psql &> /dev/null; then
                 info "PostgreSQL удален"
             else
                 warn "PostgreSQL оставлен"
-                systemctl start postgresql 2>/dev/null || true
             fi
         else
             warn "База данных оставлена"
