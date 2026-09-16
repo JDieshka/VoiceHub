@@ -40,10 +40,6 @@
         "all": true
       }
     },
-    "permission": {
-      "microphone": true,
-      "camera": false
-    },
     "bundle": {
       "active": true,
       "targets": "all",
