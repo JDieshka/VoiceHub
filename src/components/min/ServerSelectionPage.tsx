@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
+import { checkServerHealth } from '../../services/tauri';
 
 interface ServerSelectionPageProps {
   onServerSelect: (serverUrl: string) => void;
   lastServerUrl?: string;
 }
+
+// Определяем, запущены ли мы в Tauri
+const isTauri = () => {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+};
 
 export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({ 
   onServerSelect, 
@@ -45,32 +51,28 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
     setIsChecking(true);
 
     try {
-      // Проверяем доступность сервера
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
       console.log('[ServerSelection] Checking server:', `${url}/health`);
+      console.log('[ServerSelection] Is Tauri:', isTauri());
 
-      const response = await fetch(`${url}/health`, {
-        method: 'GET',
-        mode: 'cors',
-        cache: 'no-cache',
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
+      let data: any;
 
-      clearTimeout(timeoutId);
-
-      console.log('[ServerSelection] Response status:', response.status);
-
-      if (!response.ok) {
-        throw new Error(`Сервер вернул статус ${response.status}`);
+      // Используем Tauri HTTP API если в desktop режиме
+      if (isTauri()) {
+        console.log('[ServerSelection] Using Tauri HTTP API');
+        try {
+          data = await checkServerHealth(`${url}/health`);
+        } catch (tauriError) {
+          console.error('[ServerSelection] Tauri HTTP error:', tauriError);
+          // Fallback на обычный fetch если Tauri API не работает
+          console.log('[ServerSelection] Falling back to fetch API');
+          data = await fetchWithTimeout(`${url}/health`);
+        }
+      } else {
+        console.log('[ServerSelection] Using fetch API');
+        data = await fetchWithTimeout(`${url}/health`);
       }
 
-      const data = await response.json();
-      console.log('[ServerSelection] Response data:', data);
+      console.log('[ServerSelection] Response ', data);
       
       if (data.status !== 'ok') {
         throw new Error('Сервер не ответил корректно');
@@ -97,6 +99,37 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
       }
     } finally {
       setIsChecking(false);
+    }
+  };
+
+  // Функция для fetch с таймаутом
+  const fetchWithTimeout = async (url: string): Promise<any> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache',
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('[ServerSelection] Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`Сервер вернул статус ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
     }
   };
 
@@ -133,7 +166,8 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
               color: '#F08080', 
               fontSize: '8px', 
               marginTop: '10px',
-              textAlign: 'center'
+              textAlign: 'center',
+              whiteSpace: 'pre-line'
             }}>
               {error}
             </p>

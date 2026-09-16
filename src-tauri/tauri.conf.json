@@ -38,6 +38,11 @@
       },
       "process": {
         "all": true
+      },
+      "http": {
+        "all": true,
+        "request": true,
+        "scope": ["http://**", "https://**"]
       }
     },
     "bundle": {
@@ -58,7 +63,7 @@
       "longDescription": "VoiceHub — десктопное приложение для голосового общения и трансляции экрана"
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self'  blob: data: https: http: ws: wss:; connect-src 'self'  blob: data: https: http: ws: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self'  data: https://fonts.gstatic.com; img-src 'self'  blob: data: https: http:;"
     },
     "updater": {
       "active": false
