@@ -161,33 +161,54 @@ class AuthService {
    * Check if server is available
    */
   async checkServerAvailability(): Promise<boolean> {
+    const url = `${API_BASE}/health`;
+    console.log('[Auth] ====== Server Availability Check ======');
+    console.log('[Auth] API_BASE:', API_BASE);
+    console.log('[Auth] Request URL:', url);
+    console.log('[Auth] Environment:', {
+      isTauri: !!(window as any).__TAURI__,
+      userAgent: navigator.userAgent,
+      location: window.location.href
+    });
+    
     try {
-      console.log('[Auth] Checking server availability...');
-      console.log('[Auth] API_BASE:', API_BASE);
-      
       // Используем Promise.race для таймаута (совместимо с Tauri WebView)
       const timeoutPromise = new Promise<Response>((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout')), 5000);
+        setTimeout(() => reject(new Error('Timeout after 5000ms')), 5000);
       });
       
-      const fetchPromise = fetch(`${API_BASE}/health`, {
+      const fetchPromise = fetch(url, {
         method: 'GET',
         mode: 'cors',
         cache: 'no-cache',
+        headers: {
+          'Accept': 'application/json',
+        }
       });
       
+      console.log('[Auth] Fetching...');
       const response = await Promise.race([fetchPromise, timeoutPromise]);
       
       const isAvailable = response.ok;
-      console.log('[Auth] Server availability:', isAvailable);
-      console.log('[Auth] Response status:', response.status);
+      console.log('[Auth] ✅ Response received');
+      console.log('[Auth] Status:', response.status);
+      console.log('[Auth] Status Text:', response.statusText);
+      console.log('[Auth] Headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (isAvailable) {
+        const data = await response.json();
+        console.log('[Auth] Response data:', data);
+      }
+      
+      console.log('[Auth] Server available:', isAvailable);
+      console.log('[Auth] =====================================');
       return isAvailable;
     } catch (error) {
-      console.error('[Auth] Server not available:', error);
-      console.error('[Auth] Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
+      console.error('[Auth] ❌ Server NOT available');
+      console.error('[Auth] Error type:', error?.constructor?.name);
+      console.error('[Auth] Error message:', error instanceof Error ? error.message : String(error));
+      console.error('[Auth] Error stack:', error instanceof Error ? error.stack : 'No stack');
+      console.error('[Auth] =====================================');
       return false;
     }
   }

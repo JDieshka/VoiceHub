@@ -58,7 +58,7 @@
       "longDescription": "VoiceHub — десктопное приложение для голосового общения и трансляции экрана"
     },
     "security": {
-      "csp": "default-src 'self' data: blob: https: ws: wss:; media-src 'self' blob: data: https: mediastream:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https: http: ws: wss:;"
+      "csp": null
     },
     "updater": {
       "active": false
