@@ -210,53 +210,34 @@ echo ""
 # Добавляем cargo bin в PATH
 export PATH="/root/.cargo/bin:$PATH"
 
-# Проверяем наличие Tauri CLI
-TAURI_FOUND=false
-
+# Проверяем наличие Tauri CLI напрямую по файлу
 if [ -f "/root/.cargo/bin/tauri" ]; then
-    info "Tauri CLI найден в /root/.cargo/bin/tauri"
-    TAURI_FOUND=true
-elif command -v tauri &> /dev/null; then
-    info "Tauri CLI найден в PATH: $(which tauri)"
-    TAURI_FOUND=true
+    info "Tauri CLI найден: /root/.cargo/bin/tauri"
+    info "Версия: $(/root/.cargo/bin/tauri --version 2>/dev/null || echo 'неизвестно')"
 else
-    # Пробуем найти в других местах
-    for cargo_home in "$HOME/.cargo/bin" "/usr/local/cargo/bin" "/usr/bin"; do
-        if [ -f "$cargo_home/tauri" ]; then
-            info "Tauri CLI найден в $cargo_home/tauri"
-            export PATH="$cargo_home:$PATH"
-            TAURI_FOUND=true
-            break
-        fi
-    done
-fi
-
-if [ "$TAURI_FOUND" = false ]; then
-    warn "Tauri CLI не найден, устанавливаем..."
-    cargo install tauri-cli --version "^1.6"
+    warn "Tauri CLI не найден в /root/.cargo/bin/tauri"
+    echo "Устанавливаем Tauri CLI..."
+    
+    # Устанавливаем Tauri CLI
+    if ! cargo install tauri-cli --version "^1.6"; then
+        error "Не удалось установить Tauri CLI"
+        exit 1
+    fi
     
     # Проверяем после установки
     if [ -f "/root/.cargo/bin/tauri" ]; then
-        info "Tauri CLI установлен в /root/.cargo/bin/tauri"
-        export PATH="/root/.cargo/bin:$PATH"
-    elif command -v tauri &> /dev/null; then
-        info "Tauri CLI установлен: $(which tauri)"
+        info "Tauri CLI установлен: /root/.cargo/bin/tauri"
+        info "Версия: $(/root/.cargo/bin/tauri --version 2>/dev/null || echo 'неизвестно')"
     else
-        error "Не удалось установить Tauri CLI"
-        echo ""
-        echo "Попробуйте вручную:"
-        echo "  export PATH=/root/.cargo/bin:\$PATH"
-        echo "  cargo install tauri-cli --version '^1.6'"
+        error "Tauri CLI не найден после установки"
         exit 1
     fi
 fi
 
-# Проверяем версию
-if command -v tauri &> /dev/null; then
-    info "Версия Tauri CLI: $(tauri --version)"
-else
-    error "Tauri CLI не работает"
-    exit 1
+# Создаем symlink для удобства
+if [ ! -L "/usr/local/bin/tauri" ] && [ -f "/root/.cargo/bin/tauri" ]; then
+    ln -sf /root/.cargo/bin/tauri /usr/local/bin/tauri 2>/dev/null || true
+    info "Создана ссылка: /usr/local/bin/tauri"
 fi
 
 echo ""
