@@ -207,29 +207,56 @@ header "Установка Tauri CLI"
 header "═══════════════════════════════════════════════════════════"
 echo ""
 
-export PATH=$PATH:/root/.cargo/bin
+# Добавляем cargo bin в PATH
+export PATH="/root/.cargo/bin:$PATH"
 
-if command -v tauri &> /dev/null; then
-    info "Tauri CLI уже установлен: $(tauri --version)"
+# Проверяем наличие Tauri CLI
+TAURI_FOUND=false
+
+if [ -f "/root/.cargo/bin/tauri" ]; then
+    info "Tauri CLI найден в /root/.cargo/bin/tauri"
+    TAURI_FOUND=true
+elif command -v tauri &> /dev/null; then
+    info "Tauri CLI найден в PATH: $(which tauri)"
+    TAURI_FOUND=true
 else
-    info "Установка Tauri CLI..."
-    cargo install tauri-cli --version "^1.6" || true
-    
-    # Обновляем PATH
-    export PATH=$PATH:/root/.cargo/bin
-    
-    # Проверяем еще раз
-    if command -v tauri &> /dev/null; then
-        info "Tauri CLI установлен: $(tauri --version)"
-    else
-        warn "Tauri CLI не найден в PATH, пробуем добавить..."
-        if [ -f "/root/.cargo/bin/tauri" ]; then
-            info "Tauri CLI найден в /root/.cargo/bin/tauri"
-        else
-            error "Не удалось установить Tauri CLI"
-            exit 1
+    # Пробуем найти в других местах
+    for cargo_home in "$HOME/.cargo/bin" "/usr/local/cargo/bin" "/usr/bin"; do
+        if [ -f "$cargo_home/tauri" ]; then
+            info "Tauri CLI найден в $cargo_home/tauri"
+            export PATH="$cargo_home:$PATH"
+            TAURI_FOUND=true
+            break
         fi
+    done
+fi
+
+if [ "$TAURI_FOUND" = false ]; then
+    warn "Tauri CLI не найден, устанавливаем..."
+    cargo install tauri-cli --version "^1.6"
+    
+    # Проверяем после установки
+    if [ -f "/root/.cargo/bin/tauri" ]; then
+        info "Tauri CLI установлен в /root/.cargo/bin/tauri"
+        export PATH="/root/.cargo/bin:$PATH"
+    elif command -v tauri &> /dev/null; then
+        info "Tauri CLI установлен: $(which tauri)"
+    else
+        error "Не удалось установить Tauri CLI"
+        echo ""
+        echo "Попробуйте вручную:"
+        echo "  export PATH=/root/.cargo/bin:\$PATH"
+        echo "  cargo install tauri-cli --version '^1.6'"
+        exit 1
     fi
+fi
+
+# Проверяем версию
+if command -v tauri &> /dev/null; then
+    info "Версия Tauri CLI: $(tauri --version)"
+else
+    error "Tauri CLI не работает"
+    exit 1
 fi
 
 echo ""
