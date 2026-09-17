@@ -142,6 +142,22 @@ func main() {
 		})
 	}
 
+	// Downloads routes (public, no auth required)
+	downloadsPath := filepath.Join(".", "downloads")
+	if _, err := os.Stat(downloadsPath); err != nil {
+		log.Printf("⚠️  Downloads directory not found, creating...")
+		os.MkdirAll(downloadsPath, 0755)
+	}
+	log.Printf("📁 Serving downloads from %s", downloadsPath)
+	
+	mux.HandleFunc("/downloads", downloadsHandler)
+	mux.HandleFunc("/downloads/api/files", downloadsFilesHandler)
+	mux.HandleFunc("/downloads/api/version", downloadsVersionHandler)
+	
+	// Serve download files
+	fs := http.FileServer(http.Dir(downloadsPath))
+	mux.Handle("/downloads/", http.StripPrefix("/downloads/", fs))
+
 	// Apply CORS middleware
 	handler := corsMiddleware(mux)
 
@@ -265,4 +281,102 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// Downloads handlers
+func downloadsHandler(w http.ResponseWriter, r *http.Request) {
+	// Serve the downloads HTML page
+	downloadsPath := filepath.Join(".", "downloads", "index.html")
+	if _, err := os.Stat(downloadsPath); err == nil {
+		http.ServeFile(w, r, downloadsPath)
+		return
+	}
+	
+	// If no HTML page, return simple list
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VoiceHub Downloads</title>
+    <meta http-equiv="refresh" content="0; url=/downloads/index.html">
+</head>
+<body>
+    <p>Redirecting to <a href="/downloads/index.html">downloads page</a>...</p>
+</body>
+</html>
+	`))
+}
+
+func downloadsFilesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	downloadsPath := filepath.Join(".", "downloads")
+	
+	files := []map[string]interface{}{}
+	
+	entries, err := os.ReadDir(downloadsPath)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"files": files,
+			"error": err.Error(),
+		})
+		return
+	}
+	
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		
+		name := entry.Name()
+		// Skip HTML and JSON files
+		if name == "index.html" || name == "version.json" {
+			continue
+		}
+		
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		
+		files = append(files, map[string]interface{}{
+			"name": name,
+			"size": info.Size(),
+			"date": info.ModTime().Format(time.RFC3339),
+		})
+	}
+	
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"files": files,
+		"count": len(files),
+	})
+}
+
+func downloadsVersionHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	versionPath := filepath.Join(".", "downloads", "version.json")
+	
+	if _, err := os.Stat(versionPath); err != nil {
+		// Return default version info
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"version":    "2.0.0",
+			"build_date": time.Now().Format(time.RFC3339),
+			"status":     "no build available",
+		})
+		return
+	}
+	
+	// Read and serve version.json
+	data, err := os.ReadFile(versionPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Write(data)
 }
