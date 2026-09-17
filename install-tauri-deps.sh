@@ -213,13 +213,22 @@ if command -v tauri &> /dev/null; then
     info "Tauri CLI уже установлен: $(tauri --version)"
 else
     info "Установка Tauri CLI..."
-    cargo install tauri-cli --version "^1.6"
+    cargo install tauri-cli --version "^1.6" || true
     
+    # Обновляем PATH
+    export PATH=$PATH:/root/.cargo/bin
+    
+    # Проверяем еще раз
     if command -v tauri &> /dev/null; then
         info "Tauri CLI установлен: $(tauri --version)"
     else
-        error "Не удалось установить Tauri CLI"
-        exit 1
+        warn "Tauri CLI не найден в PATH, пробуем добавить..."
+        if [ -f "/root/.cargo/bin/tauri" ]; then
+            info "Tauri CLI найден в /root/.cargo/bin/tauri"
+        else
+            error "Не удалось установить Tauri CLI"
+            exit 1
+        fi
     fi
 fi
 
