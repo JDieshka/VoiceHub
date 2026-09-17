@@ -33,15 +33,18 @@ export async function checkServerHealth(url: string): Promise<any> {
   }
   
   try {
-    const response = await (window as any).__TAURI__.invoke('check_server_health', { url });
+    // Передаем url как строку, а не как объект
+    const response = await (window as any).__TAURI__.invoke('check_server_health', url);
     
     console.log('[Tauri] Rust backend response:', response);
     
-    if (response.status !== 'ok') {
+    // response - это JSON ответ сервера напрямую
+    // Например: {"status":"ok","service":"voicehub-server","version":"2.0.0","time":"..."}
+    if (response && response.status === 'ok') {
+      return response;
+    } else {
       throw new Error('Сервер не ответил корректно');
     }
-    
-    return response;
   } catch (error) {
     console.error('[Tauri] Rust backend request failed:', error);
     throw error;
@@ -67,20 +70,22 @@ export async function httpRequest(
   }
   
   try {
+    // Передаем параметры как отдельные аргументы
     const response = await (window as any).__TAURI__.invoke('http_request', {
       url,
       method: options.method || 'GET',
-      headers: options.headers ? JSON.stringify(options.headers) : null,
-      body: options.body,
+      headers: options.headers || null,
+      body: options.body || null,
     });
 
     console.log('[Tauri] Rust backend response:', response);
 
-    if (response.status < 200 || response.status >= 300) {
-      throw new Error(`HTTP ${response.status}`);
+    // response - это объект { status: number, data: any }
+    if (response && response.status >= 200 && response.status < 300) {
+      return response.data;
+    } else {
+      throw new Error(`HTTP ${response?.status || 'unknown'}`);
     }
-
-    return response.data;
   } catch (error) {
     console.error('[Tauri] Rust backend request failed:', error);
     throw error;
