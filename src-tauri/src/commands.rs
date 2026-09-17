@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use sysinfo::System;
 use auto_launch::AutoLaunchBuilder;
 use cpal::traits::{HostTrait, DeviceTrait};
+use reqwest;
+use std::time::Duration;
 
 /// Проверить доступность микрофона
 #[command]
@@ -287,4 +289,98 @@ pub fn flash_tray_icon(app: AppHandle) {
     // On Linux, this would use urgency hints
     // For now, just show a notification
     let _ = app.emit_all("notification", "Новое событие в VoiceHub");
+}
+
+/// Check server health via Rust backend (bypasses WebView2 restrictions)
+#[command]
+pub async fn check_server_health(url: String) -> Result<serde_json::Value, String> {
+    println!("[Rust] Checking server health: {}", url);
+    
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    
+    let response = client
+        .get(&url)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| {
+            println!("[Rust] HTTP request failed: {}", e);
+            format!("HTTP request failed: {}", e)
+        })?;
+    
+    let status = response.status();
+    println!("[Rust] Response status: {}", status);
+    
+    if !status.is_success() {
+        return Err(format!("Server returned status: {}", status));
+    }
+    
+    let data: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    
+    println!("[Rust] Response : {:?}", data);
+    Ok(data)
+}
+
+/// Generic HTTP request via Rust backend
+#[command]
+pub async fn http_request(
+    url: String,
+    method: String,
+    headers: Option<serde_json::Value>,
+    body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    println!("[Rust] HTTP {} request: {}", method, url);
+    
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    
+    let mut request = match method.to_uppercase().as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        _ => return Err(format!("Unsupported method: {}", method)),
+    };
+    
+    // Add headers if provided
+    if let Some(headers_json) = headers {
+        if let Some(headers_obj) = headers_json.as_object() {
+            for (key, value) in headers_obj {
+                if let Some(value_str) = value.as_str() {
+                    request = request.header(key, value_str);
+                }
+            }
+        }
+    }
+    
+    // Add body if provided
+    if let Some(body_json) = body {
+        request = request.json(&body_json);
+    }
+    
+    let response = request.send().await.map_err(|e| {
+        println!("[Rust] HTTP request failed: {}", e);
+        format!("HTTP request failed: {}", e)
+    })?;
+    
+    let status = response.status();
+    println!("[Rust] Response status: {}", status);
+    
+    let data: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    
+    Ok(serde_json::json!({
+        "status": status.as_u16(),
+        "data": data
+    }))
 }

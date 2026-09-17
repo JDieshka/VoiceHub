@@ -82,40 +82,56 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
     setIsChecking(true);
 
     try {
+      console.log('[ServerSelection] ========== НАЧАЛО ПОДКЛЮЧЕНИЯ ==========');
       console.log('[ServerSelection] Input:', serverUrl);
       console.log('[ServerSelection] Normalized URL:', url);
-      console.log('[ServerSelection] Checking server:', `${url}/health`);
+      console.log('[ServerSelection] Health URL:', `${url}/health`);
       console.log('[ServerSelection] Is Tauri:', isTauri());
+      console.log('[ServerSelection] Tauri available:', !!(window as any).__TAURI__);
 
       let data: any;
 
-      // Используем Tauri HTTP API если в desktop режиме
+      // Используем Rust backend если в desktop режиме
       if (isTauri()) {
-        console.log('[ServerSelection] Using Tauri HTTP API');
+        console.log('[ServerSelection] Using Rust backend (check_server_health)');
         try {
           data = await checkServerHealth(`${url}/health`);
-        } catch (tauriError) {
-          console.error('[ServerSelection] Tauri HTTP error:', tauriError);
-          // Fallback на обычный fetch если Tauri API не работает
+          console.log('[ServerSelection] Rust backend success:', data);
+        } catch (rustError) {
+          console.error('[ServerSelection] Rust backend error:', rustError);
           console.log('[ServerSelection] Falling back to fetch API');
-          data = await fetchWithTimeout(`${url}/health`);
+          
+          // Fallback на обычный fetch
+          try {
+            data = await fetchWithTimeout(`${url}/health`);
+            console.log('[ServerSelection] Fetch fallback success:', data);
+          } catch (fetchError) {
+            console.error('[ServerSelection] Fetch fallback error:', fetchError);
+            throw fetchError;
+          }
         }
       } else {
-        console.log('[ServerSelection] Using fetch API');
+        console.log('[ServerSelection] Using fetch API (browser mode)');
         data = await fetchWithTimeout(`${url}/health`);
+        console.log('[ServerSelection] Fetch success:', data);
       }
 
-      console.log('[ServerSelection] Response ', data);
+      console.log('[ServerSelection] Response data:', data);
       
       if (data.status !== 'ok') {
         throw new Error('Сервер не ответил корректно');
       }
 
       // Сервер доступен, переходим к авторизации
-      console.log('[ServerSelection] Server is available, proceeding to auth');
+      console.log('[ServerSelection] ✅ Server is available, proceeding to auth');
+      console.log('[ServerSelection] ========== КОНЕЦ ПОДКЛЮЧЕНИЯ ==========');
       onServerSelect(url);
     } catch (err) {
-      console.error('[ServerSelection] Connection error:', err);
+      console.error('[ServerSelection] ========== ОШИБКА ПОДКЛЮЧЕНИЯ ==========');
+      console.error('[ServerSelection] Error type:', err?.constructor?.name);
+      console.error('[ServerSelection] Error message:', err instanceof Error ? err.message : String(err));
+      console.error('[ServerSelection] Error stack:', err instanceof Error ? err.stack : 'No stack');
+      console.error('[ServerSelection] ==========================================');
       
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
@@ -124,6 +140,8 @@ export const ServerSelectionPage: React.FC<ServerSelectionPageProps> = ({
           setError('Не удалось подключиться к серверу. Возможные причины:\n• Сервер не запущен\n• Неверный адрес\n• Проблемы с сетью\n• CORS не настроен на сервере');
         } else if (err.message.includes('CORS')) {
           setError('Ошибка CORS. Сервер не разрешает запросы с этого домена.');
+        } else if (err.message.includes('HTTP request failed')) {
+          setError(`Ошибка сети: ${err.message}\n\nПроверьте:\n• Сервер запущен\n• Порт 8080 открыт\n• Firewall не блокирует`);
         } else {
           setError(`Не удалось подключиться к серверу: ${err.message}`);
         }

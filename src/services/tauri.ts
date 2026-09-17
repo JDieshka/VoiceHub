@@ -23,40 +23,33 @@ export function isTauri(): boolean {
 }
 
 /**
- * Проверка доступности сервера через Tauri HTTP API
+ * Проверка доступности сервера через Rust backend
  */
 export async function checkServerHealth(url: string): Promise<any> {
-  console.log('[Tauri] Checking server health via Tauri HTTP API:', url);
+  console.log('[Tauri] Checking server health via Rust backend:', url);
   
-  if (!isTauri() || !window.__TAURI__?.http) {
-    throw new Error('Tauri HTTP API not available');
+  if (!isTauri()) {
+    throw new Error('Not running in Tauri');
   }
   
   try {
-    const response = await window.__TAURI__.http.fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      timeout: 10,
-    });
-
-    console.log('[Tauri] Response status:', response.status);
-    console.log('[Tauri] Response ', response.data);
-
-    if (response.status !== 200) {
-      throw new Error(`Сервер вернул статус ${response.status}`);
+    const response = await (window as any).__TAURI__.invoke('check_server_health', { url });
+    
+    console.log('[Tauri] Rust backend response:', response);
+    
+    if (response.status !== 'ok') {
+      throw new Error('Сервер не ответил корректно');
     }
-
-    return response.data;
+    
+    return response;
   } catch (error) {
-    console.error('[Tauri] HTTP request failed:', error);
+    console.error('[Tauri] Rust backend request failed:', error);
     throw error;
   }
 }
 
 /**
- * Выполнение HTTP запроса через Tauri API
+ * Выполнение HTTP запроса через Rust backend
  */
 export async function httpRequest(
   url: string,
@@ -67,29 +60,29 @@ export async function httpRequest(
     timeout?: number;
   } = {}
 ): Promise<any> {
-  console.log('[Tauri] HTTP request:', options.method || 'GET', url);
+  console.log('[Tauri] HTTP request via Rust backend:', options.method || 'GET', url);
   
-  if (!isTauri() || !window.__TAURI__?.http) {
-    throw new Error('Tauri HTTP API not available');
+  if (!isTauri()) {
+    throw new Error('Not running in Tauri');
   }
   
   try {
-    const response = await window.__TAURI__.http.fetch(url, {
+    const response = await (window as any).__TAURI__.invoke('http_request', {
+      url,
       method: options.method || 'GET',
-      headers: options.headers,
+      headers: options.headers ? JSON.stringify(options.headers) : null,
       body: options.body,
-      timeout: options.timeout || 10,
     });
 
-    console.log('[Tauri] Response status:', response.status);
+    console.log('[Tauri] Rust backend response:', response);
 
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
     return response.data;
   } catch (error) {
-    console.error('[Tauri] HTTP request failed:', error);
+    console.error('[Tauri] Rust backend request failed:', error);
     throw error;
   }
 }
