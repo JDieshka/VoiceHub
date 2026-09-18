@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>VoiceHub Icon Generator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1e1f22;
+            color: #dbdee1;
+        }
+        h1 { color: #5865f2; }
+        .info { background: #2b2d31; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        button {
+            background: #5865f2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #4752c4; }
+        .icons { display: flex; flex-wrap: wrap; gap: 20px; margin: 20px 0; }
+        .icon-item {
+            background: #2b2d31;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .icon-item img { image-rendering: pixelated; }
+        .status { color: #23a559; font-weight: bold; margin: 10px 0; }
+        code { background: #1e1f22; padding: 2px 6px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🎨 VoiceHub Icon Generator</h1>
+    
+    <div class="info">
+        <p>Этот инструмент создаст все необходимые иконки для Tauri приложения.</p>
+        <p><strong>Инструкция:</strong></p>
+        <ol>
+            <li>Нажмите кнопку "Сгенерировать иконки"</li>
+            <li>Все файлы скачаются автоматически</li>
+            <li>Переместите скачанные файлы в папку <code>src-tauri/icons/</code></li>
+            <li>Закоммитьте изменения в Git</li>
+        </ol>
+    </div>
+
+    <button onclick="generateAllIcons()">🚀 Сгенерировать иконки</button>
+    <button onclick="downloadAllAsZip()">📦 Скачать всё ZIP</button>
+
+    <div id="status" class="status"></div>
+    <div id="icons" class="icons"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        const ICONS = [
+            { name: '32x32.png', size: 32 },
+            { name: '128x128.png', size: 128 },
+            { name: '128x128@2x.png', size: 256 },
+            { name: 'icon.png', size: 512 },
+            { name: 'tray.png', size: 64 },
+        ];
+
+        function createIcon(size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#5865f2');
+            gradient.addColorStop(1, '#7c3aed');
+            
+            // Circle
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Microphone icon
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = size * 0.05;
+            
+            // Mic body
+            const micWidth = size * 0.2;
+            const micHeight = size * 0.35;
+            const micX = size/2 - micWidth/2;
+            const micY = size * 0.2;
+            
+            ctx.beginPath();
+            ctx.roundRect(micX, micY, micWidth, micHeight, micWidth/2);
+            ctx.fill();
+
+            // Mic stand
+            ctx.beginPath();
+            ctx.arc(size/2, size * 0.55, size * 0.2, 0, Math.PI);
+            ctx.stroke();
+
+            // Mic base
+            ctx.beginPath();
+            ctx.moveTo(size/2, size * 0.75);
+            ctx.lineTo(size/2, size * 0.85);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(size * 0.35, size * 0.85);
+            ctx.lineTo(size * 0.65, size * 0.85);
+            ctx.stroke();
+
+            return canvas;
+        }
+
+        function downloadCanvas(canvas, filename) {
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        async function generateAllIcons() {
+            const status = document.getElementById('status');
+            const iconsDiv = document.getElementById('icons');
+            iconsDiv.innerHTML = '';
+
+            for (const icon of ICONS) {
+                status.textContent = `Генерация ${icon.name}...`;
+                const canvas = createIcon(icon.size);
+                
+                // Show preview
+                const item = document.createElement('div');
+                item.className = 'icon-item';
+                item.innerHTML = `
+                    <img src="${canvas.toDataURL()}" width="${Math.min(icon.size, 64)}" height="${Math.min(icon.size, 64)}">
+                    <div>${icon.name}</div>
+                    <div>${icon.size}x${icon.size}</div>
+                `;
+                iconsDiv.appendChild(item);
+
+                // Download
+                downloadCanvas(canvas, icon.name);
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            status.textContent = '✅ Все PNG иконки сгенерированы! Теперь создайте icon.ico';
+            status.innerHTML += '<br><br><strong>Для создания icon.ico:</strong><br>';
+            status.innerHTML += '1. Откройте https://convertico.com/<br>';
+            status.innerHTML += '2. Загрузите icon.png (512x512)<br>';
+            status.innerHTML += '3. Скачайте icon.ico<br>';
+            status.innerHTML += '4. Переместите все файлы в <code>src-tauri/icons/</code>';
+        }
+
+        async function downloadAllAsZip() {
+            const status = document.getElementById('status');
+            status.textContent = 'Создание ZIP архива...';
+
+            const zip = new JSZip();
+            
+            for (const icon of ICONS) {
+                const canvas = createIcon(icon.size);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve));
+                zip.file(icon.name, blob);
+            }
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'voicehub-icons.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            status.textContent = '✅ ZIP архив скачан! Распакуйте в src-tauri/icons/';
+            status.innerHTML += '<br><br><strong>Не забудьте создать icon.ico:</strong><br>';
+            status.innerHTML += '1. Откройте https://convertico.com/<br>';
+            status.innerHTML += '2. Загрузите icon.png из архива<br>';
+            status.innerHTML += '3. Скачайте icon.ico<br>';
+            status.innerHTML += '4. Положите в src-tauri/icons/';
+        }
+    </script>
+</body>
+</html>

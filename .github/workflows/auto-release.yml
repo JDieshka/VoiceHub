@@ -1,0 +1,179 @@
+name: Auto Tag & Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    name: Check Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from package.json
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Detected version: $VERSION"
+          echo "🏷️  Tag will be: v$VERSION"
+
+      - name: Check if tag exists
+        id: check
+        run: |
+          if git rev-parse "refs/tags/${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Tag ${{ steps.ver.outputs.tag }} already exists - skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Tag ${{ steps.ver.outputs.tag }} does not exist - will create release"
+          fi
+
+  build-and-release:
+    name: Build and Release
+    needs: check-version
+    if: needs.check-version.outputs.exists == 'false'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^1.6"
+
+      - name: Generate icons
+        run: node scripts/create-placeholder-icons.js
+
+      - name: Build Tauri app
+        run: cargo tauri build
+
+      - name: Prepare release files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release
+          
+          # Copy Windows MSI
+          $msiFiles = Get-ChildItem -Path "src-tauri\target\release\bundle\msi" -Filter "*.msi"
+          foreach ($file in $msiFiles) {
+            Copy-Item $file.FullName -Destination "release\"
+            Write-Host "Copied MSI: $($file.Name)"
+          }
+          
+          # Copy Windows EXE
+          $exeFiles = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis" -Filter "*.exe"
+          foreach ($file in $exeFiles) {
+            Copy-Item $file.FullName -Destination "release\"
+            Write-Host "Copied EXE: $($file.Name)"
+          }
+          
+          # Copy frontend
+          New-Item -ItemType Directory -Force -Path "release\web"
+          Copy-Item -Path "dist\*" -Destination "release\web\" -Recurse -Force
+          Write-Host "Copied frontend files"
+          
+          # List all files
+          Write-Host "`n📦 Release files:"
+          Get-ChildItem -Path "release" -Recurse | ForEach-Object { Write-Host $_.FullName }
+
+      - name: Create tag
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ needs.check-version.outputs.tag }}
+          git push origin ${{ needs.check-version.outputs.tag }}
+          echo "✅ Created tag: ${{ needs.check-version.outputs.tag }}"
+
+      - name: Create Release with GitHub CLI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📦 Creating release for tag ${{ needs.check-version.outputs.tag }}"
+          
+          # Create release notes
+          cat > release_notes.md << 'EOF'
+          ## 🎉 VoiceHub ${{ needs.check-version.outputs.tag }}
+          
+          Автоматический релиз версии ${{ needs.check-version.outputs.version }}
+          
+          ### 📥 Установка
+          
+          #### Windows
+          - **MSI установщик** - рекомендуется для большинства пользователей
+          - **EXE установщик** - альтернативный вариант
+          
+          #### Web-версия
+          Скачайте папку `web` и откройте `index.html` в браузере
+          
+          ### 🔧 Изменения
+          
+          Автоматически сгенерированы из коммитов с момента последнего релиза.
+          
+          ### 📋 Подключение
+          
+          Приложение автоматически подключается к серверу VoiceHub.
+          
+          ---
+          **Полная документация:** [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+          EOF
+          
+          # Create release with all files
+          gh release create "${{ needs.check-version.outputs.tag }}" \
+            --title "VoiceHub ${{ needs.check-version.outputs.tag }}" \
+            --notes-file release_notes.md \
+            --generate-notes \
+            release/*
+          
+          echo "✅ Release created successfully!"
+
+      - name: Summary
+        shell: bash
+        run: |
+          echo "## ✅ Release Created Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.check-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ needs.check-version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release URL:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.check-version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Files uploaded:" >> $GITHUB_STEP_SUMMARY
+          ls -lh release/ >> $GITHUB_STEP_SUMMARY
