@@ -55,6 +55,7 @@ func main() {
 	var serverRepo *database.ServerRepository
 	var channelRepo *database.ChannelRepository
 	var messageRepo *database.MessageRepository
+	var chatRepo *database.ChatRepository
 
 	if db != nil {
 		userRepo = database.NewUserRepository(db)
@@ -62,6 +63,7 @@ func main() {
 		serverRepo = database.NewServerRepository(db)
 		channelRepo = database.NewChannelRepository(db)
 		messageRepo = database.NewMessageRepository(db)
+		chatRepo = database.NewChatRepository(db)
 	}
 
 	// Initialize JWT manager
@@ -70,10 +72,12 @@ func main() {
 	// Initialize handlers
 	var authHandler *handlers.AuthHandler
 	var serverHandler *handlers.ServerHandler
+	var chatHandler *handlers.ChatHandler
 
 	if db != nil {
 		authHandler = handlers.NewAuthHandler(userRepo, tokenRepo, jwtManager, cfg.RefreshExpiration)
 		serverHandler = handlers.NewServerHandler(serverRepo, channelRepo, messageRepo, userRepo)
+		chatHandler = handlers.NewChatHandler(chatRepo, messageRepo)
 	}
 
 	// Initialize WebSocket hub
@@ -132,6 +136,14 @@ func main() {
 		mux.Handle("/api/servers/channels", authMiddleware(http.HandlerFunc(serverHandler.GetServerChannels)))
 		mux.Handle("/api/channels/messages", authMiddleware(http.HandlerFunc(serverHandler.GetChannelMessages)))
 		mux.Handle("/api/messages/send", authMiddleware(http.HandlerFunc(serverHandler.SendMessage)))
+		
+		// Chat endpoints
+		if chatHandler != nil {
+			mux.Handle("/api/chats", authMiddleware(http.HandlerFunc(chatHandler.CreateChat)))
+			mux.Handle("/api/chats/list", authMiddleware(http.HandlerFunc(chatHandler.GetUserChats)))
+			mux.Handle("/api/chats/messages", authMiddleware(http.HandlerFunc(chatHandler.GetChatMessages)))
+			mux.Handle("/api/chats/messages/send", authMiddleware(http.HandlerFunc(chatHandler.SendMessage)))
+		}
 	}
 
 	// WebSocket routes (can work with or without auth)

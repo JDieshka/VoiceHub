@@ -103,18 +103,18 @@ func NewMessageRepository(db *Database) *MessageRepository {
 // Create creates a new message
 func (r *MessageRepository) Create(ctx context.Context, message *models.Message) error {
 	query := `
-		INSERT INTO messages (id, channel_id, user_id, content, created_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO messages (id, channel_id, chat_id, user_id, content, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 	_, err := r.db.DB.ExecContext(ctx, query,
-		message.ID, message.ChannelID, message.UserID, message.Content, message.CreatedAt)
+		message.ID, message.ChannelID, message.ChatID, message.UserID, message.Content, message.CreatedAt)
 	return err
 }
 
 // GetByChannel retrieves messages for a channel
 func (r *MessageRepository) GetByChannel(ctx context.Context, channelID uuid.UUID, limit, offset int) ([]models.Message, error) {
 	query := `
-		SELECT id, channel_id, user_id, content, created_at
+		SELECT id, channel_id, chat_id, user_id, content, created_at
 		FROM messages
 		WHERE channel_id = $1
 		ORDER BY created_at DESC
@@ -129,7 +129,33 @@ func (r *MessageRepository) GetByChannel(ctx context.Context, channelID uuid.UUI
 	var messages []models.Message
 	for rows.Next() {
 		var message models.Message
-		if err := rows.Scan(&message.ID, &message.ChannelID, &message.UserID, &message.Content, &message.CreatedAt); err != nil {
+		if err := rows.Scan(&message.ID, &message.ChannelID, &message.ChatID, &message.UserID, &message.Content, &message.CreatedAt); err != nil {
+			return nil, err
+		}
+		messages = append(messages, message)
+	}
+	return messages, rows.Err()
+}
+
+// GetByChat retrieves messages for a chat
+func (r *MessageRepository) GetByChat(ctx context.Context, chatID uuid.UUID, limit, offset int) ([]models.Message, error) {
+	query := `
+		SELECT id, channel_id, chat_id, user_id, content, created_at
+		FROM messages
+		WHERE chat_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+	rows, err := r.db.DB.QueryContext(ctx, query, chatID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []models.Message
+	for rows.Next() {
+		var message models.Message
+		if err := rows.Scan(&message.ID, &message.ChannelID, &message.ChatID, &message.UserID, &message.Content, &message.CreatedAt); err != nil {
 			return nil, err
 		}
 		messages = append(messages, message)
@@ -140,12 +166,12 @@ func (r *MessageRepository) GetByChannel(ctx context.Context, channelID uuid.UUI
 // GetByID retrieves a message by ID
 func (r *MessageRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Message, error) {
 	query := `
-		SELECT id, channel_id, user_id, content, created_at
+		SELECT id, channel_id, chat_id, user_id, content, created_at
 		FROM messages WHERE id = $1
 	`
 	message := &models.Message{}
 	err := r.db.DB.QueryRowContext(ctx, query, id).Scan(
-		&message.ID, &message.ChannelID, &message.UserID, &message.Content, &message.CreatedAt)
+		&message.ID, &message.ChannelID, &message.ChatID, &message.UserID, &message.Content, &message.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
