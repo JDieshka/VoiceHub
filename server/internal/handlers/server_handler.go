@@ -303,7 +303,7 @@ func (h *ServerHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	message := &models.Message{
 		ID:        uuid.New(),
-		ChannelID: id,
+		ChannelID: &id,
 		UserID:    user.ID,
 		Content:   req.Content,
 		CreatedAt: time.Now(),

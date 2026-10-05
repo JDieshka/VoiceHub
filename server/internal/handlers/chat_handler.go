@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"voicehub-server/internal/auth"
 	"voicehub-server/internal/database"
 	"voicehub-server/internal/models"
 )
@@ -153,7 +152,7 @@ func (h *ChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	message := &models.Message{
 		ID:        uuid.New(),
-		ChatID:    id,
+		ChatID:    &id,
 		UserID:    userID,
 		Content:   req.Content,
 		CreatedAt: time.Now(),
