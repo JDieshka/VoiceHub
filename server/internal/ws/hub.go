@@ -246,6 +246,24 @@ func (h *Hub) BroadcastToChannel(channelID string, data []byte, excludeID string
 	}
 }
 
+// BroadcastToAll sends a message to all connected clients
+func (h *Hub) BroadcastToAll(data []byte, excludeID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for clientID, client := range h.clients {
+		if clientID == excludeID {
+			continue
+		}
+		select {
+		case client.Send <- data:
+		default:
+			// Client buffer is full, skip
+			log.Printf("[Hub] Client %s buffer full, skipping broadcast", clientID)
+		}
+	}
+}
+
 // SendToClient sends a message to a specific client
 func (h *Hub) SendToClient(clientID string, data []byte) {
 	h.mu.RLock()
@@ -374,6 +392,26 @@ func (h *Hub) HandleMessage(client *Client, msg models.SignalMessage) {
 		// Relay text messages to all in channel
 		data, _ := json.Marshal(msg)
 		h.BroadcastToChannel(msg.ChannelID, data, "")
+	case "server-created":
+		// Broadcast server creation to all clients
+		log.Printf("[Hub] Server created by %s", client.ID)
+		data, _ := json.Marshal(msg)
+		h.BroadcastToAll(data, client.ID)
+	case "room-created":
+		// Broadcast room creation to all clients
+		log.Printf("[Hub] Room created by %s", client.ID)
+		data, _ := json.Marshal(msg)
+		h.BroadcastToAll(data, client.ID)
+	case "chat-created":
+		// Broadcast chat creation to all clients
+		log.Printf("[Hub] Chat created by %s", client.ID)
+		data, _ := json.Marshal(msg)
+		h.BroadcastToAll(data, client.ID)
+	case "chat-message":
+		// Broadcast chat message to all clients
+		log.Printf("[Hub] Chat message from %s", client.ID)
+		data, _ := json.Marshal(msg)
+		h.BroadcastToAll(data, client.ID)
 	default:
 		log.Printf("[Hub] Unknown message type: %s", msg.Type)
 	}

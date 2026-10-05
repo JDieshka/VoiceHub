@@ -9,6 +9,7 @@ import { ProfileView } from './components/min/ProfileView';
 import { Modal } from './components/min/Modal';
 import { authService, setServerUrl, getServerUrl } from './services/auth';
 import { websocketService } from './services/websocket';
+import { apiService } from './services/api';
 import './styles/min.css';
 
 // Импортируем шрифт
@@ -55,7 +56,49 @@ function App() {
     status: 'offline'
   });
 
-  // Загрузка пользователя при аутентификации
+  // Функция загрузки серверов с сервера
+  const loadServers = async () => {
+    try {
+      console.log('[App] Loading servers...');
+      const serversData = await apiService.getServers();
+      console.log('[App] Servers loaded:', serversData);
+      
+      // Преобразуем данные серверов в формат для UI
+      const formattedServers = serversData.map((server: any) => ({
+        id: server.id,
+        name: server.name,
+        availableSlots: 5, // TODO: Получить реальное значение
+        totalSlots: 5,
+        rooms: server.rooms || []
+      }));
+      
+      setServers(formattedServers);
+    } catch (error) {
+      console.error('[App] Failed to load servers:', error);
+    }
+  };
+
+  // Функция загрузки чатов с сервера
+  const loadChats = async () => {
+    try {
+      console.log('[App] Loading chats...');
+      const chatsData = await apiService.getChats();
+      console.log('[App] Chats loaded:', chatsData);
+      
+      // Преобразуем данные чатов в формат для UI
+      const formattedChats = chatsData.map((chat: any) => ({
+        id: chat.id,
+        name: chat.name,
+        lastMessage: chat.lastMessage || ''
+      }));
+      
+      setChats(formattedChats);
+    } catch (error) {
+      console.error('[App] Failed to load chats:', error);
+    }
+  };
+
+  // Загрузка пользователя и данных при аутентификации
   useEffect(() => {
     if (isAuthenticated) {
       const currentUser = authService.getUser();
@@ -70,8 +113,74 @@ function App() {
           email: currentUser.email || '',
           status: currentUser.status || 'online'
         });
+        
+        // Загружаем данные с сервера
+        loadServers();
+        loadChats();
+        
+        // Подключаемся к WebSocket
+        if (!websocketService.isConnected()) {
+          websocketService.connect(currentUser.id, currentUser.username);
+        }
       }
     }
+  }, [isAuthenticated]);
+
+  // WebSocket listeners для синхронизации в реальном времени
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Обработчик создания сервера
+    const handleServerCreated = (server: any) => {
+      console.log('[App] Server created via WebSocket:', server);
+      setServers(prev => [...prev, {
+        id: server.id,
+        name: server.name,
+        availableSlots: 5,
+        totalSlots: 5,
+        rooms: server.rooms || []
+      }]);
+    };
+
+    // Обработчик создания комнаты
+    const handleRoomCreated = (room: any) => {
+      console.log('[App] Room created via WebSocket:', room);
+      setServers(prev => prev.map(s => 
+        s.id === room.serverId 
+          ? { ...s, rooms: [...s.rooms, room] }
+          : s
+      ));
+    };
+
+    // Обработчик создания чата
+    const handleChatCreated = (chat: any) => {
+      console.log('[App] Chat created via WebSocket:', chat);
+      setChats(prev => [...prev, {
+        id: chat.id,
+        name: chat.name,
+        lastMessage: chat.lastMessage || ''
+      }]);
+    };
+
+    // Обработчик нового сообщения
+    const handleChatMessage = (message: any) => {
+      console.log('[App] Chat message received via WebSocket:', message);
+      // TODO: Обновить сообщения в чате
+    };
+
+    // Подписываемся на события
+    websocketService.on('server-created', handleServerCreated);
+    websocketService.on('room-created', handleRoomCreated);
+    websocketService.on('chat-created', handleChatCreated);
+    websocketService.on('chat-message', handleChatMessage);
+
+    // Отписываемся при размонтировании
+    return () => {
+      websocketService.off('server-created', handleServerCreated);
+      websocketService.off('room-created', handleRoomCreated);
+      websocketService.off('chat-created', handleChatCreated);
+      websocketService.off('chat-message', handleChatMessage);
+    };
   }, [isAuthenticated]);
 
   // Обработчик выбора сервера
@@ -133,34 +242,84 @@ function App() {
     setModalType('chat');
   };
 
-  const handleModalSubmit = (data: any) => {
-    if (modalType === 'chat') {
-      const newChat = {
-        id: Date.now().toString(),
-        name: data.name,
-        lastMessage: ''
-      };
-      setChats([...chats, newChat]);
-    } else if (modalType === 'server') {
-      const newServer = {
-        id: Date.now().toString(),
-        name: data.name,
-        availableSlots: 5,
-        totalSlots: 5,
-        rooms: []
-      };
-      setServers([...servers, newServer]);
-    } else if (modalType === 'channel') {
-      // Добавить комнату в первый сервер
-      if (servers.length > 0) {
-        const updatedServers = [...servers];
-        updatedServers[0].rooms.push({
-          id: Date.now().toString(),
-          name: data.name,
-          participants: []
+  const handleModalSubmit = async (data: any) => {
+    try {
+      if (modalType === 'chat') {
+        console.log('[App] Creating chat:', data.name);
+        // Отправляем на сервер
+        const newChat = await apiService.createChat(data.name);
+        console.log('[App] Chat created:', newChat);
+        
+        // Добавляем в локальное состояние
+        setChats([...chats, {
+          id: newChat.id,
+          name: newChat.name,
+          lastMessage: ''
+        }]);
+        
+        // Уведомляем других через WebSocket
+        websocketService.send({
+          type: 'chat-created',
+          payload: newChat
         });
-        setServers(updatedServers);
+        
+      } else if (modalType === 'server') {
+        console.log('[App] Creating server:', data.name);
+        // Отправляем на сервер
+        const newServer = await apiService.createServer(data.name, data.icon || '🎮');
+        console.log('[App] Server created:', newServer);
+        
+        // Добавляем в локальное состояние
+        setServers([...servers, {
+          id: newServer.id,
+          name: newServer.name,
+          availableSlots: 5,
+          totalSlots: 5,
+          rooms: []
+        }]);
+        
+        // Уведомляем других через WebSocket
+        websocketService.send({
+          type: 'server-created',
+          payload: newServer
+        });
+        
+      } else if (modalType === 'channel') {
+        // Добавить комнату в первый сервер
+        if (servers.length > 0) {
+          const serverId = servers[0].id;
+          console.log('[App] Creating room:', data.name, 'in server:', serverId);
+          
+          // Отправляем на сервер
+          const newRoom = await apiService.createRoom(serverId, data.name, data.type || 'voice');
+          console.log('[App] Room created:', newRoom);
+          
+          // Добавляем в локальное состояние
+          const updatedServers = [...servers];
+          const serverIndex = updatedServers.findIndex(s => s.id === serverId);
+          if (serverIndex !== -1) {
+            updatedServers[serverIndex].rooms.push({
+              id: newRoom.id,
+              name: newRoom.name,
+              participants: []
+            });
+            setServers(updatedServers);
+          }
+          
+          // Уведомляем других через WebSocket
+          websocketService.send({
+            type: 'room-created',
+            payload: { ...newRoom, serverId }
+          });
+        }
       }
+      
+      // Закрываем модальное окно
+      setModalType(null);
+      
+    } catch (error) {
+      console.error('[App] Failed to create:', error);
+      alert('Ошибка создания. Проверьте подключение к серверу.');
     }
   };
 
