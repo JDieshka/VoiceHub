@@ -120,73 +120,194 @@ header "Проверка 3: PostgreSQL"
 header "═══════════════════════════════════════════════════════════"
 echo ""
 
+# Устанавливаем PostgreSQL если не установлен
 if ! command -v psql &> /dev/null; then
     warn "PostgreSQL не установлен. Устанавливаем..."
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
     apt-get install -y postgresql postgresql-contrib
-    systemctl start postgresql
-    systemctl enable postgresql
     info "PostgreSQL установлен"
 else
     info "PostgreSQL уже установлен"
 fi
 
-# Проверяем что PostgreSQL запущен
-if ! systemctl is-active --quiet postgresql; then
-    warn "PostgreSQL не запущен. Запускаем..."
-    systemctl start postgresql
+# Проверяем и инициализируем кластер PostgreSQL
+PG_VERSION=$(ls /etc/postgresql/ 2>/dev/null | head -n 1)
+if [ -z "$PG_VERSION" ]; then
+    PG_VERSION="15"
 fi
+
+PG_DATA_DIR="/var/lib/postgresql/$PG_VERSION/main"
+
+info "Проверка кластера PostgreSQL..."
+
+# Проверяем существует ли директория данных
+if [ ! -d "$PG_DATA_DIR" ] || [ ! -f "$PG_DATA_DIR/PG_VERSION" ]; then
+    warn "Директория данных PostgreSQL отсутствует или повреждена"
+    info "Инициализация нового кластера PostgreSQL..."
+    
+    # Создаем директорию
+    mkdir -p "$PG_DATA_DIR"
+    chown postgres:postgres "$PG_DATA_DIR"
+    chmod 700 "$PG_DATA_DIR"
+    
+    # Инициализируем кластер
+    if ! sudo -u postgres /usr/lib/postgresql/$PG_VERSION/bin/initdb -D "$PG_DATA_DIR" 2>/dev/null; then
+        error "Не удалось инициализировать кластер PostgreSQL"
+        echo ""
+        echo "Попробуйте вручную:"
+        echo "  sudo -u postgres /usr/lib/postgresql/$PG_VERSION/bin/initdb -D $PG_DATA_DIR"
+        exit 1
+    fi
+    
+    info "Кластер PostgreSQL инициализирован"
+    
+    # Настраиваем конфигурацию для прослушивания на localhost
+    info "Настройка конфигурации PostgreSQL..."
+    cat >> "$PG_DATA_DIR/postgresql.conf" << 'EOF'
+
+# VoiceHub configuration
+listen_addresses = 'localhost'
+port = 5432
+EOF
+    
+    chown postgres:postgres "$PG_DATA_DIR/postgresql.conf"
+    
+    # Настраиваем pg_hba.conf для аутентификации
+    cat > "$PG_DATA_DIR/pg_hba.conf" << 'EOF'
+# PostgreSQL configuration file for VoiceHub
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+
+# Local connections
+local   all             postgres                                peer
+local   all             all                                     peer
+
+# IPv4 local connections
+host    all             all             127.0.0.1/32            scram-sha-256
+
+# IPv6 local connections
+host    all             all             ::1/128                 scram-sha-256
+EOF
+    
+    chown postgres:postgres "$PG_DATA_DIR/pg_hba.conf"
+    
+    info "Конфигурация PostgreSQL настроена"
+fi
+
+# Запускаем PostgreSQL
+info "Запуск PostgreSQL..."
+if ! systemctl start postgresql; then
+    error "Не удалось запустить PostgreSQL"
+    echo ""
+    echo "Проверьте логи:"
+    echo "  sudo journalctl -u postgresql@$PG_VERSION-main -n 20"
+    exit 1
+fi
+
+# Включаем автозапуск
+systemctl enable postgresql > /dev/null 2>&1
+
+# Ждем запуска PostgreSQL
+info "Ожидание запуска PostgreSQL..."
+sleep 3
+
+# Проверяем что PostgreSQL запущен
+if ! systemctl is-active --quiet postgresql@$PG_VERSION-main; then
+    error "PostgreSQL не запустился"
+    echo ""
+    echo "Проверьте логи:"
+    echo "  sudo journalctl -u postgresql@$PG_VERSION-main -n 20"
+    exit 1
+fi
+
+info "PostgreSQL запущен"
 
 # Создаем базу данных и пользователя
 info "Настройка базы данных..."
 
 # Проверяем существует ли пользователь
-if su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='voicehub'\"" | grep -q 1; then
+if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='voicehub'" 2>/dev/null | grep -q 1; then
     warn "Пользователь voicehub уже существует"
     
     if confirm "Удалить и пересоздать пользователя voicehub?"; then
         info "Удаление старого пользователя..."
-        su - postgres -c "psql -c \"DROP USER IF EXISTS voicehub;\"" || error "Не удалось удалить пользователя"
+        sudo -u postgres psql -c "DROP USER IF EXISTS voicehub;" || error "Не удалось удалить пользователя"
         
         info "Создание пользователя..."
-        su - postgres -c "psql -c \"CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';\"" || error "Не удалось создать пользователя"
+        sudo -u postgres psql -c "CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';" || error "Не удалось создать пользователя"
         info "Пользователь пересоздан"
     else
         info "Пользователь оставлен"
     fi
 else
     info "Создание пользователя voicehub..."
-    su - postgres -c "psql -c \"CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';\"" || error "Не удалось создать пользователя"
+    sudo -u postgres psql -c "CREATE USER voicehub WITH PASSWORD 'VoiceHub2024SecurePass';" || error "Не удалось создать пользователя"
     info "Пользователь создан"
 fi
 
 # Проверяем существует ли БД
-if su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='voicehub'\"" | grep -q 1; then
+if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='voicehub'" 2>/dev/null | grep -q 1; then
     warn "База данных voicehub уже существует"
     
     if confirm "Удалить и пересоздать базу данных voicehub?"; then
         info "Закрытие подключений к БД..."
-        su - postgres -c "psql -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='voicehub';\"" 2>/dev/null || true
+        sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='voicehub';" 2>/dev/null || true
         
         info "Удаление старой БД..."
-        su - postgres -c "psql -c \"DROP DATABASE IF EXISTS voicehub;\"" || error "Не удалось удалить БД"
+        sudo -u postgres psql -c "DROP DATABASE IF EXISTS voicehub;" || error "Не удалось удалить БД"
         
         info "Создание новой БД..."
-        su - postgres -c "psql -c \"CREATE DATABASE voicehub OWNER voicehub;\"" || error "Не удалось создать БД"
+        sudo -u postgres psql -c "CREATE DATABASE voicehub OWNER voicehub;" || error "Не удалось создать БД"
         info "База данных пересоздана"
     else
         info "База данных оставлена"
     fi
 else
     info "Создание базы данных voicehub..."
-    su - postgres -c "psql -c \"CREATE DATABASE voicehub OWNER voicehub;\"" || error "Не удалось создать БД"
+    sudo -u postgres psql -c "CREATE DATABASE voicehub OWNER voicehub;" || error "Не удалось создать БД"
     info "База данных создана"
 fi
 
 # Предоставляем привилегии
 info "Настройка привилегий..."
-su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE voicehub TO voicehub;\"" || warn "Не удалось предоставить привилегии"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE voicehub TO voicehub;" || warn "Не удалось предоставить привилегии"
+
+# Выполняем миграции
+info "Выполнение миграций базы данных..."
+
+# Миграция 1: Основная схема
+if [ -f "$PROJECT_ROOT/server/migrations/001_initial_schema.sql" ]; then
+    info "Выполнение миграции 001_initial_schema.sql..."
+    if ! sudo -u postgres psql -d voicehub -f "$PROJECT_ROOT/server/migrations/001_initial_schema.sql" > /dev/null 2>&1; then
+        warn "Миграция 001 не выполнена (возможно таблицы уже существуют)"
+    else
+        info "Миграция 001 выполнена"
+    fi
+fi
+
+# Миграция 2: Добавление чатов
+if [ -f "$PROJECT_ROOT/server/migrations/002_add_chats.sql" ]; then
+    info "Выполнение миграции 002_add_chats.sql..."
+    if ! sudo -u postgres psql -d voicehub -f "$PROJECT_ROOT/server/migrations/002_add_chats.sql" > /dev/null 2>&1; then
+        warn "Миграция 002 не выполнена (возможно таблицы уже существуют)"
+    else
+        info "Миграция 002 выполнена"
+    fi
+fi
+
+# Проверяем что таблицы созданы
+info "Проверка таблиц базы данных..."
+TABLE_COUNT=$(sudo -u postgres psql -d voicehub -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null || echo "0")
+
+if [ "$TABLE_COUNT" -lt 5 ]; then
+    warn "Создано только $TABLE_COUNT таблиц (ожидается минимум 5)"
+    echo ""
+    echo "Попробуйте выполнить миграции вручную:"
+    echo "  sudo -u postgres psql -d voicehub -f $PROJECT_ROOT/server/migrations/001_initial_schema.sql"
+    echo "  sudo -u postgres psql -d voicehub -f $PROJECT_ROOT/server/migrations/002_add_chats.sql"
+else
+    info "Создано $TABLE_COUNT таблиц"
+fi
 
 info "База данных настроена"
 echo ""
