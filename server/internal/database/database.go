@@ -95,7 +95,8 @@ func (d *Database) RunMigrations() error {
 
 	CREATE TABLE IF NOT EXISTS messages (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-		channel_id UUID NOT NULL REFERENCES text_channels(id) ON DELETE CASCADE,
+		channel_id UUID REFERENCES text_channels(id) ON DELETE CASCADE,
+		chat_id UUID,
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		content TEXT NOT NULL,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -107,6 +108,19 @@ func (d *Database) RunMigrations() error {
 		token VARCHAR(255) UNIQUE NOT NULL,
 		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS chats (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		name VARCHAR(100) NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS chat_members (
+		chat_id UUID NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		PRIMARY KEY (chat_id, user_id)
 	);
 	`
 

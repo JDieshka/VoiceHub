@@ -53,13 +53,28 @@ type TextChannel struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
-// Message represents a message in a text channel
+// Message represents a message in a text channel or chat
 type Message struct {
+	ID        uuid.UUID  `json:"id" db:"id"`
+	ChannelID *uuid.UUID `json:"channel_id,omitempty" db:"channel_id"`
+	ChatID    *uuid.UUID `json:"chat_id,omitempty" db:"chat_id"`
+	UserID    uuid.UUID  `json:"user_id" db:"user_id"`
+	Content   string     `json:"content" db:"content"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+}
+
+// Chat represents a direct message chat between users
+type Chat struct {
 	ID        uuid.UUID `json:"id" db:"id"`
-	ChannelID uuid.UUID `json:"channel_id" db:"channel_id"`
-	UserID    uuid.UUID `json:"user_id" db:"user_id"`
-	Content   string    `json:"content" db:"content"`
+	Name      string    `json:"name" db:"name"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// ChatMember represents a user's membership in a chat
+type ChatMember struct {
+	ChatID   uuid.UUID `json:"chat_id" db:"chat_id"`
+	UserID   uuid.UUID `json:"user_id" db:"user_id"`
+	JoinedAt time.Time `json:"joined_at" db:"joined_at"`
 }
 
 // RefreshToken represents a refresh token for JWT authentication
