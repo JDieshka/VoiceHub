@@ -150,6 +150,37 @@ class WebSocketService {
     });
   }
   
+  sendServerCreated(server: any) {
+    this.send({
+      type: 'server-created',
+      payload: server
+    });
+  }
+  
+  sendRoomCreated(room: any) {
+    this.send({
+      type: 'room-created',
+      payload: room
+    });
+  }
+  
+  sendChatCreated(chat: any) {
+    this.send({
+      type: 'chat-created',
+      payload: chat
+    });
+  }
+  
+  sendChatMessage(chatId: string, message: any) {
+    this.send({
+      type: 'chat-message',
+      payload: {
+        chatId,
+        ...message
+      }
+    });
+  }
+  
   on(type: string, handler: MessageHandler) {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, []);
