@@ -1,0 +1,43 @@
+name: Build Test
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  test-build-windows:
+    name: Test Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^1.6"
+
+      - name: Generate icons
+        run: node scripts/create-placeholder-icons.js
+
+      - name: Build Tauri app
+        run: cargo tauri build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: voicehub-windows-test
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
