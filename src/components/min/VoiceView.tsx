@@ -57,6 +57,13 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   useEffect(() => {
     const initMedia = async () => {
       try {
+        // Проверяем поддержку getUserMedia
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.warn('[VoiceView] getUserMedia not supported - running without audio/video');
+          console.warn('[VoiceView] For full functionality, use HTTPS or localhost');
+          return;
+        }
+
         const stream = await webrtcService.initLocalStream();
         setLocalStream(stream);
         setIsCameraOn(true);
@@ -67,6 +74,14 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         }
       } catch (error) {
         console.error('[VoiceView] Failed to initialize media:', error);
+        console.warn('[VoiceView] Continuing without audio/video - text chat will still work');
+        
+        // Показываем предупреждение пользователю
+        if (error instanceof Error && error.message.includes('Permission denied')) {
+          alert('Доступ к микрофону/камере запрещен. Текстовый чат будет работать, но голосовая связь недоступна.');
+        } else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.warn('[VoiceView] Browser does not support WebRTC or requires HTTPS');
+        }
       }
     };
 

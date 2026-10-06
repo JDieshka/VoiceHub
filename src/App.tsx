@@ -8,7 +8,7 @@ import { VoiceView } from './components/min/VoiceView';
 import { ProfileView } from './components/min/ProfileView';
 import { Modal } from './components/min/Modal';
 import { authService, setServerUrl, getServerUrl } from './services/auth';
-import { websocketService } from './services/websocket';
+import { websocketService, setWebSocketUrl } from './services/websocket';
 import { apiService } from './services/api';
 import './styles/min.css';
 
@@ -191,6 +191,7 @@ function App() {
     
     // Устанавливаем URL в сервисах
     setServerUrl(url);
+    setWebSocketUrl(url);
     
     console.log('[App] Server selected:', url);
   };

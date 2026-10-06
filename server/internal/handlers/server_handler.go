@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -268,6 +269,101 @@ func (h *ServerHandler) GetChannelMessages(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(messages)
+}
+
+// CreateRoom creates a new room (voice or text channel) in a server
+func (h *ServerHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract server ID from URL path
+	// Expected path: /api/servers/{serverId}/rooms
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	if len(parts) < 5 {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	serverIDStr := parts[3]
+
+	serverID, err := uuid.Parse(serverIDStr)
+	if err != nil {
+		http.Error(w, "Invalid server ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user is member of server
+	isMember, err := h.serverRepo.IsMember(r.Context(), serverID, user.ID)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+		Type string `json:"type"` // "voice" or "text"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "Room name is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.Type == "" {
+		req.Type = "voice"
+	}
+
+	roomID := uuid.New()
+
+	if req.Type == "voice" {
+		room := &models.VoiceChannel{
+			ID:        roomID,
+			ServerID:  serverID,
+			Name:      req.Name,
+			Bitrate:   64000,
+			CreatedAt: time.Now(),
+		}
+		if err := h.channelRepo.CreateVoiceChannel(r.Context(), room); err != nil {
+			http.Error(w, "Failed to create voice channel", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(room)
+	} else if req.Type == "text" {
+		room := &models.TextChannel{
+			ID:        roomID,
+			ServerID:  serverID,
+			Name:      req.Name,
+			CreatedAt: time.Now(),
+		}
+		if err := h.channelRepo.CreateTextChannel(r.Context(), room); err != nil {
+			http.Error(w, "Failed to create text channel", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(room)
+	} else {
+		http.Error(w, "Invalid room type", http.StatusBadRequest)
+		return
+	}
 }
 
 // SendMessage sends a message to a channel
