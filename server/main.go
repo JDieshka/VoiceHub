@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -136,6 +137,15 @@ func main() {
 		mux.Handle("/api/servers/channels", authMiddleware(http.HandlerFunc(serverHandler.GetServerChannels)))
 		mux.Handle("/api/channels/messages", authMiddleware(http.HandlerFunc(serverHandler.GetChannelMessages)))
 		mux.Handle("/api/messages/send", authMiddleware(http.HandlerFunc(serverHandler.SendMessage)))
+		
+		// Room creation endpoint - matches /api/servers/{id}/rooms
+		mux.HandleFunc("/api/servers/", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/rooms") {
+				authMiddleware(http.HandlerFunc(serverHandler.CreateRoom))(w, r)
+			} else {
+				http.NotFound(w, r)
+			}
+		})
 		
 		// Chat endpoints
 		if chatHandler != nil {
